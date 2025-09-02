@@ -1,0 +1,81 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'pnpm'
+          
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: latest
+          
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+        
+      - name: Build and package executables
+        run: pnpm package
+        
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            dist/releases/smartui-migration-tool-linux
+            dist/releases/smartui-migration-tool-macos
+            dist/releases/smartui-migration-tool-macos-arm64
+            dist/releases/smartui-migration-tool-win.exe
+          name: Release ${{ github.ref_name }}
+          body: |
+            ## 🚀 SmartUI Migration Tool ${{ github.ref_name }}
+            
+            ### 📦 Downloads
+            
+            Choose the appropriate binary for your operating system:
+            
+            - **Linux (x64)**: `smartui-migration-tool-linux`
+            - **macOS (Intel)**: `smartui-migration-tool-macos`
+            - **macOS (Apple Silicon)**: `smartui-migration-tool-macos-arm64`
+            - **Windows (x64)**: `smartui-migration-tool-win.exe`
+            
+            ### 🛠️ Installation
+            
+            1. Download the appropriate binary for your operating system
+            2. Make it executable (Linux/macOS): `chmod +x smartui-migration-tool-*`
+            3. Move it to your PATH or run it directly
+            
+            ### 🚀 Usage
+            
+            ```bash
+            ./smartui-migration-tool-* migrate
+            ```
+            
+            ### 📋 Features
+            
+            - **Multi-Platform Support**: Percy, Applitools, Sauce Labs Visual
+            - **Multi-Language Support**: JavaScript/TypeScript, Java, Python
+            - **Multi-Framework Support**: Cypress, Playwright, Selenium, Storybook, Appium
+            - **Interactive Workflow**: Analysis reports, file selection, confirmation prompts
+            - **Professional Reports**: Comprehensive MIGRATION_REPORT.md files
+            - **Actionable Guidance**: Copy-pasteable commands for immediate next steps
+            
+            ### 📚 Documentation
+            
+            For detailed usage instructions and examples, visit the [GitHub repository](https://github.com/${{ github.repository }}).
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

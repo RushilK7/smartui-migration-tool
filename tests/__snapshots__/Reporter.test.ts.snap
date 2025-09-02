@@ -1,0 +1,312 @@
+// Jest Snapshot v1, https://jestjs.io/docs/snapshot-testing
+
+exports[`Reporter Report Generation should generate report for Appium Python project 1`] = `
+"# 🚀 SmartUI Migration Report
+
+**Generated:** 2024-01-15 10:03:15.000 UTC  
+**Migration Duration:** 195 seconds
+
+---
+
+## 📊 Migration Summary
+
+| Property | Value |
+|----------|-------|
+| **Source Platform** | Percy |
+| **Language** | Python |
+| **Framework** | Appium |
+| **Test Type** | Mobile Testing (Appium) |
+| **Files Processed** | 3 |
+| **Snapshots Migrated** | 3 |
+
+---
+## 📂 Files Modified / Created
+
+### ✅ Files Created
+
+- \`.smartui.json\`
+
+### 🔄 Files Modified
+
+- \`tests/test_mobile.py\`
+- \`.github/workflows/mobile.yml\`
+
+---
+## ⚠️ Warnings & Manual Review Required
+
+The following items require your attention:
+
+1. **Found 2 native context switching call(s)**
+   Native context switching calls have been preserved to maintain hybrid app testing functionality.
+
+---
+## 🚀 Next Steps
+
+### 1. Install Dependencies
+
+Install the SmartUI App SDK for Python:
+
+\`\`\`bash
+pip install lambdatest-appium-driver
+\`\`\`
+
+### 2. Configure CI/CD Secrets
+
+Set the following environment variables in your CI/CD provider's settings:
+
+- \`PROJECT_TOKEN\` - Your SmartUI project token
+- \`LT_USERNAME\` - Your LambdaTest username  
+- \`LT_ACCESS_KEY\` - Your LambdaTest access key
+
+**Note:** These secrets have been added as placeholders in your CI/CD configuration files. Make sure to replace them with your actual credentials.
+
+### 3. Run Your Migrated Tests
+
+Execute your tests with SmartUI using one of these commands:
+
+\`\`\`bash
+npx smartui exec -- pytest
+\`\`\`
+
+### 📝 Additional Notes
+
+**Mobile Testing:** Your Appium tests have been migrated to use SmartUI's mobile testing capabilities. Make sure your device configurations and app paths are correctly set up in your test environment.
+
+**Native Context Switching:** If your tests use native context switching (e.g., \`driver.switch_to.context('NATIVE_APP')\`), these calls have been preserved to maintain hybrid app testing functionality.
+
+**Dashboard Access:** Visit the [SmartUI Dashboard](https://smartui.lambdatest.com) to view your test results, manage baselines, and configure your project settings.
+
+"
+`;
+
+exports[`Reporter Report Generation should generate report for E2E Cypress project 1`] = `
+"# 🚀 SmartUI Migration Report
+
+**Generated:** 2024-01-15 10:02:30.000 UTC  
+**Migration Duration:** 150 seconds
+
+---
+
+## 📊 Migration Summary
+
+| Property | Value |
+|----------|-------|
+| **Source Platform** | Percy |
+| **Language** | JavaScript/TypeScript |
+| **Framework** | Cypress |
+| **Test Type** | End-to-End Testing |
+| **Files Processed** | 4 |
+| **Snapshots Migrated** | 5 |
+
+---
+## 📂 Files Modified / Created
+
+### ✅ Files Created
+
+- \`.smartui.json\`
+
+### 🔄 Files Modified
+
+- \`cypress/e2e/test.cy.js\`
+- \`package.json\`
+- \`.github/workflows/test.yml\`
+
+---
+## ⚠️ Warnings & Manual Review Required
+
+The following items require your attention:
+
+1. **Percy CSS configuration detected**
+   The percy-css configuration has been emulated by injecting styles before each snapshot. Please review the transformed code to ensure it meets your needs.
+
+---
+## 🚀 Next Steps
+
+### 1. Install Dependencies
+
+Install the SmartUI SDK for your framework:
+
+\`\`\`bash
+npm install @lambdatest/smartui-cypress
+\`\`\`
+
+### 2. Configure CI/CD Secrets
+
+Set the following environment variables in your CI/CD provider's settings:
+
+- \`PROJECT_TOKEN\` - Your SmartUI project token
+- \`LT_USERNAME\` - Your LambdaTest username  
+- \`LT_ACCESS_KEY\` - Your LambdaTest access key
+
+**Note:** These secrets have been added as placeholders in your CI/CD configuration files. Make sure to replace them with your actual credentials.
+
+### 3. Run Your Migrated Tests
+
+Execute your tests with SmartUI using one of these commands:
+
+\`\`\`bash
+npx smartui exec -- npx cypress run
+\`\`\`
+
+### 📝 Additional Notes
+
+**E2E Testing:** Your end-to-end tests have been migrated to use SmartUI's web testing capabilities. The tool will capture screenshots during test execution and compare them against your baseline images.
+
+**Dashboard Access:** Visit the [SmartUI Dashboard](https://smartui.lambdatest.com) to view your test results, manage baselines, and configure your project settings.
+
+"
+`;
+
+exports[`Reporter Report Generation should generate report for Java project 1`] = `
+"# 🚀 SmartUI Migration Report
+
+**Generated:** 2024-01-15 10:02:00.000 UTC  
+**Migration Duration:** 120 seconds
+
+---
+
+## 📊 Migration Summary
+
+| Property | Value |
+|----------|-------|
+| **Source Platform** | Applitools |
+| **Language** | Java |
+| **Framework** | Selenium |
+| **Test Type** | End-to-End Testing |
+| **Files Processed** | 4 |
+| **Snapshots Migrated** | 2 |
+
+---
+## 📂 Files Modified / Created
+
+### ✅ Files Created
+
+- \`.smartui.json\`
+
+### 🔄 Files Modified
+
+- \`src/test/java/Test.java\`
+- \`pom.xml\`
+- \`.github/workflows/test.yml\`
+
+---
+## ⚠️ Warnings & Manual Review Required
+
+✅ **No warnings were generated.** Your migration completed successfully without any issues that require manual review.
+
+---
+## 🚀 Next Steps
+
+### 1. Install Dependencies
+
+Add the SmartUI Selenium SDK to your \`pom.xml\`:
+
+\`\`\`xml
+<dependency>
+    <groupId>com.lambdatest</groupId>
+    <artifactId>lambdatest-selenium-driver</artifactId>
+    <version>1.0.0</version>
+</dependency>
+\`\`\`
+
+### 2. Configure CI/CD Secrets
+
+Set the following environment variables in your CI/CD provider's settings:
+
+- \`PROJECT_TOKEN\` - Your SmartUI project token
+- \`LT_USERNAME\` - Your LambdaTest username  
+- \`LT_ACCESS_KEY\` - Your LambdaTest access key
+
+**Note:** These secrets have been added as placeholders in your CI/CD configuration files. Make sure to replace them with your actual credentials.
+
+### 3. Run Your Migrated Tests
+
+Execute your tests with SmartUI using one of these commands:
+
+\`\`\`bash
+npx smartui exec -- mvn test
+\`\`\`
+
+### 📝 Additional Notes
+
+**E2E Testing:** Your end-to-end tests have been migrated to use SmartUI's web testing capabilities. The tool will capture screenshots during test execution and compare them against your baseline images.
+
+**Dashboard Access:** Visit the [SmartUI Dashboard](https://smartui.lambdatest.com) to view your test results, manage baselines, and configure your project settings.
+
+"
+`;
+
+exports[`Reporter Report Generation should generate report for Storybook project 1`] = `
+"# 🚀 SmartUI Migration Report
+
+**Generated:** 2024-01-15 10:01:45.000 UTC  
+**Migration Duration:** 105 seconds
+
+---
+
+## 📊 Migration Summary
+
+| Property | Value |
+|----------|-------|
+| **Source Platform** | Applitools |
+| **Language** | JavaScript/TypeScript |
+| **Framework** | Storybook |
+| **Test Type** | Component Testing (Storybook) |
+| **Files Processed** | 3 |
+| **Snapshots Migrated** | 0 |
+
+---
+## 📂 Files Modified / Created
+
+### ✅ Files Created
+
+- \`.smartui.json\`
+
+### 🔄 Files Modified
+
+- \`package.json\`
+- \`.github/workflows/storybook.yml\`
+
+---
+## ⚠️ Warnings & Manual Review Required
+
+✅ **No warnings were generated.** Your migration completed successfully without any issues that require manual review.
+
+---
+## 🚀 Next Steps
+
+### 1. Install Dependencies
+
+Install the SmartUI Storybook SDK:
+
+\`\`\`bash
+npm install @lambdatest/smartui-storybook
+\`\`\`
+
+### 2. Configure CI/CD Secrets
+
+Set the following environment variables in your CI/CD provider's settings:
+
+- \`PROJECT_TOKEN\` - Your SmartUI project token
+- \`LT_USERNAME\` - Your LambdaTest username  
+- \`LT_ACCESS_KEY\` - Your LambdaTest access key
+
+**Note:** These secrets have been added as placeholders in your CI/CD configuration files. Make sure to replace them with your actual credentials.
+
+### 3. Run Your Migrated Tests
+
+Execute your tests with SmartUI using one of these commands:
+
+\`\`\`bash
+npx smartui exec -- npm run build-storybook
+npx smartui-storybook
+\`\`\`
+
+### 📝 Additional Notes
+
+**Component Testing:** Your Storybook tests have been migrated to use SmartUI's component testing capabilities. The tool will automatically detect your Storybook server and capture component screenshots.
+
+**Dashboard Access:** Visit the [SmartUI Dashboard](https://smartui.lambdatest.com) to view your test results, manage baselines, and configure your project settings.
+
+"
+`;

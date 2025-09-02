@@ -1,0 +1,104 @@
+{
+  "name": "smartui-migration-tool",
+  "version": "1.0.0",
+  "description": "A sophisticated CLI tool to migrate visual testing suites to LambdaTest SmartUI",
+  "main": "lib/index.js",
+  "bin": {
+    "smartui-migrator": "./bin/run"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "start": "node lib/index.js",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src --ext .ts",
+    "lint:fix": "eslint src --ext .ts --fix",
+    "format": "prettier --write src/**/*.ts",
+    "package": "pnpm build && pkg ."
+  },
+  "keywords": [
+    "smartui",
+    "migration",
+    "visual-testing",
+    "percy",
+    "applitools",
+    "sauce-labs",
+    "lambdatest",
+    "cli"
+  ],
+  "author": "LambdaTest",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/lambdatest/smartui-migration-tool.git"
+  },
+  "homepage": "https://github.com/lambdatest/smartui-migration-tool#readme",
+  "bugs": {
+    "url": "https://github.com/lambdatest/smartui-migration-tool/issues"
+  },
+  "dependencies": {
+    "@babel/generator": "^7.28.3",
+    "@babel/parser": "^7.28.3",
+    "@babel/traverse": "^7.28.3",
+    "@babel/types": "^7.28.2",
+    "@oclif/core": "^3.0.0",
+    "chalk": "^5.3.0",
+    "cli-table3": "^0.6.5",
+    "fast-glob": "^3.3.3",
+    "fast-xml-parser": "^5.2.5",
+    "figlet": "^1.7.0",
+    "inquirer": "^12.9.4",
+    "java-parser": "^3.0.1",
+    "js-yaml": "^4.1.0",
+    "ora": "^8.2.0"
+  },
+  "devDependencies": {
+    "@types/babel__generator": "^7.27.0",
+    "@types/babel__traverse": "^7.28.0",
+    "@types/figlet": "^1.7.0",
+    "@types/inquirer": "^9.0.9",
+    "@types/jest": "^30.0.0",
+    "@types/js-yaml": "^4.0.9",
+    "@types/mock-fs": "^4.13.4",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "eslint-config-prettier": "^9.0.0",
+    "eslint-plugin-prettier": "^5.0.0",
+    "jest": "^30.1.3",
+    "mock-fs": "^5.5.0",
+    "pkg": "^5.8.1",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.4.1",
+    "typescript": "^5.0.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "files": [
+    "lib",
+    "bin"
+  ],
+  "oclif": {
+    "commands": "./lib/commands",
+    "bin": "smartui-migrator",
+    "dirname": "lib",
+    "hooks": {},
+    "plugins": [],
+    "topicSeparator": " "
+  },
+  "pkg": {
+    "scripts": "lib/**/*.js",
+    "assets": "bin/**/*",
+    "targets": [
+      "node18-linux-x64",
+      "node18-macos-x64",
+      "node18-macos-arm64",
+      "node18-win-x64"
+    ],
+    "outputPath": "dist/releases"
+  }
+}
