@@ -244,6 +244,9 @@ export class Scanner {
           return null;
         }
       } catch (error: any) {
+        if (error instanceof MultiplePlatformsDetectedError) {
+          throw error; // Re-throw multiple platform detection errors
+        }
         logger.debug(`Could not parse package.json content. Reason: ${error.message}`);
         return null;
       }
@@ -407,6 +410,15 @@ export class Scanner {
         logger.debug(`Result: No 'saucelabs_visual' dependency found.`);
       }
 
+      // Check for direct Sauce Labs Python projects (without Appium or Robot Framework)
+      logger.debug('Checking requirements.txt for direct Sauce Labs dependencies...');
+      if (lines.some(line => line.includes('saucelabs_visual'))) {
+        logger.debug(`Result: Found 'saucelabs_visual'. Platform detected as Sauce Labs Visual.`);
+        return await this.createDetectionResult('Sauce Labs Visual', 'Selenium', 'Python', absoluteScanPath);
+      } else {
+        logger.debug(`Result: No 'saucelabs_visual' dependency found.`);
+      }
+
       logger.debug('Python analysis completed: No platforms detected');
     }
 
@@ -556,11 +568,11 @@ export class Scanner {
   private getConfigPatterns(platform: string): string[] {
     switch (platform) {
       case 'Percy':
-        return ['.percy.yml', '.percy.js', 'percy.config.js', 'percy.config.ts'];
+        return ['.percy.yml', '.percy.js', '.percyrc', 'percy.config.js', 'percy.config.ts'];
       case 'Applitools':
-        return ['applitools.config.js', 'applitools.config.ts'];
+        return ['applitools.config.js', 'applitools.config.ts', 'applitools.config.json'];
       case 'Sauce Labs Visual':
-        return ['saucectl.yml', 'sauce.config.js', 'sauce.config.ts'];
+        return ['saucectl.yml', 'sauce.config.js', 'sauce.config.ts', 'sauce.config.json'];
       default:
         return [];
     }
@@ -651,9 +663,11 @@ export class Scanner {
     const dependencies: any[] = [];
     
     const extractFromSection = (section: any) => {
-      if (section && Array.isArray(section)) {
-        section.forEach((dep: any) => {
-          if (dep.artifactId) {
+      if (section) {
+        // Handle both single dependency object and array of dependencies
+        const deps = Array.isArray(section) ? section : [section];
+        deps.forEach((dep: any) => {
+          if (dep && dep.artifactId) {
             dependencies.push(dep);
           }
         });
