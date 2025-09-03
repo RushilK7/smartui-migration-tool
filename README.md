@@ -21,7 +21,7 @@ A sophisticated command-line interface (CLI) designed to help enterprise QA and 
 
 ### Option 1: Download Pre-built Binary (Recommended)
 
-Download the appropriate binary for your operating system from the [GitHub Releases](https://github.com/lambdatest/smartui-migration-tool/releases) page:
+Download the appropriate binary for your operating system from the [GitHub Releases](https://github.com/RushilK7/smartui-migration-tool/releases) page:
 
 - **Linux (x64)**: `smartui-migration-tool-linux`
 - **macOS (Intel)**: `smartui-migration-tool-macos`
