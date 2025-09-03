@@ -20,6 +20,16 @@ describe('Reporter - Simple Tests', () => {
           source: ['cypress/e2e/test.cy.js'],
           ci: ['.github/workflows/test.yml'],
           packageManager: ['package.json']
+        },
+        evidence: {
+          platform: {
+            source: 'package.json',
+            match: '@percy/cypress'
+          },
+          framework: {
+            files: ['cypress/e2e/test.cy.js'],
+            signatures: ['/cy\\.visit/']
+          }
         }
       },
       filesCreated: ['.smartui.json'],
@@ -52,6 +62,16 @@ describe('Reporter - Simple Tests', () => {
           source: ['cypress/e2e/test.cy.js'],
           ci: [],
           packageManager: ['package.json']
+        },
+        evidence: {
+          platform: {
+            source: 'package.json',
+            match: '@percy/cypress'
+          },
+          framework: {
+            files: ['cypress/e2e/test.cy.js'],
+            signatures: ['/cy\\.visit/']
+          }
         }
       },
       filesCreated: ['.smartui.json'],

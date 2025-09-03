@@ -172,6 +172,8 @@ export class Scanner {
       if (anchorResult.platform === 'unknown' && sourceFiles.length > 0) {
         detectedPlatform = await this.determinePlatformFromContent(absoluteScanPath, sourceFiles);
         logger.debug(`Determined platform from content: ${detectedPlatform}`);
+        // Update anchor result with content-scan evidence
+        anchorResult.evidence = { source: 'content-scan', match: 'magic-strings' };
       }
 
       // If still no platform detected, throw error
@@ -270,44 +272,92 @@ export class Scanner {
       // Check for Percy dependencies
       if (dependencies['@percy/cypress']) {
         logger.debug(`Found '@percy/cypress' dependency`);
-        detectedPlatforms.push({ platform: 'Percy', magicStrings: ['percySnapshot', 'percyScreenshot'], framework: 'Cypress', language: 'JavaScript/TypeScript' });
+        detectedPlatforms.push({ 
+          platform: 'Percy', 
+          magicStrings: ['percySnapshot', 'percyScreenshot'], 
+          framework: 'Cypress', 
+          language: 'JavaScript/TypeScript',
+          evidence: { source: 'package.json', match: '@percy/cypress' }
+        });
       }
       
       if (dependencies['@percy/playwright']) {
         logger.debug(`Found '@percy/playwright' dependency`);
-        detectedPlatforms.push({ platform: 'Percy', magicStrings: ['percySnapshot', 'percyScreenshot'], framework: 'Playwright', language: 'JavaScript/TypeScript' });
+        detectedPlatforms.push({ 
+          platform: 'Percy', 
+          magicStrings: ['percySnapshot', 'percyScreenshot'], 
+          framework: 'Playwright', 
+          language: 'JavaScript/TypeScript',
+          evidence: { source: 'package.json', match: '@percy/playwright' }
+        });
       }
       
       if (dependencies['@percy/storybook']) {
         logger.debug(`Found '@percy/storybook' dependency`);
-        detectedPlatforms.push({ platform: 'Percy', magicStrings: ['percySnapshot', 'percyScreenshot', 'export default', 'export const', 'title:'], framework: 'Storybook', language: 'JavaScript/TypeScript' });
+        detectedPlatforms.push({ 
+          platform: 'Percy', 
+          magicStrings: ['percySnapshot', 'percyScreenshot', 'export default', 'export const', 'title:'], 
+          framework: 'Storybook', 
+          language: 'JavaScript/TypeScript',
+          evidence: { source: 'package.json', match: '@percy/storybook' }
+        });
       }
 
       // Check for Applitools dependencies
       if (dependencies['@applitools/eyes-cypress']) {
         logger.debug(`Found '@applitools/eyes-cypress' dependency`);
-        detectedPlatforms.push({ platform: 'Applitools', magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'], framework: 'Cypress', language: 'JavaScript/TypeScript' });
+        detectedPlatforms.push({ 
+          platform: 'Applitools', 
+          magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'], 
+          framework: 'Cypress', 
+          language: 'JavaScript/TypeScript',
+          evidence: { source: 'package.json', match: '@applitools/eyes-cypress' }
+        });
       }
       
       if (dependencies['@applitools/eyes-playwright']) {
         logger.debug(`Found '@applitools/eyes-playwright' dependency`);
-        detectedPlatforms.push({ platform: 'Applitools', magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'], framework: 'Playwright', language: 'JavaScript/TypeScript' });
+        detectedPlatforms.push({ 
+          platform: 'Applitools', 
+          magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'], 
+          framework: 'Playwright', 
+          language: 'JavaScript/TypeScript',
+          evidence: { source: 'package.json', match: '@applitools/eyes-playwright' }
+        });
       }
       
       if (dependencies['@applitools/eyes-storybook']) {
         logger.debug(`Found '@applitools/eyes-storybook' dependency`);
-        detectedPlatforms.push({ platform: 'Applitools', magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'], framework: 'Storybook', language: 'JavaScript/TypeScript' });
+        detectedPlatforms.push({ 
+          platform: 'Applitools', 
+          magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'], 
+          framework: 'Storybook', 
+          language: 'JavaScript/TypeScript',
+          evidence: { source: 'package.json', match: '@applitools/eyes-storybook' }
+        });
       }
 
       // Check for Sauce Labs dependencies
       if (dependencies['@saucelabs/cypress-visual-plugin']) {
         logger.debug(`Found '@saucelabs/cypress-visual-plugin' dependency`);
-        detectedPlatforms.push({ platform: 'Sauce Labs Visual', magicStrings: ['sauceVisualCheck', 'sauceVisualSnapshot'], framework: 'Cypress', language: 'JavaScript/TypeScript' });
+        detectedPlatforms.push({ 
+          platform: 'Sauce Labs Visual', 
+          magicStrings: ['sauceVisualCheck', 'sauceVisualSnapshot'], 
+          framework: 'Cypress', 
+          language: 'JavaScript/TypeScript',
+          evidence: { source: 'package.json', match: '@saucelabs/cypress-visual-plugin' }
+        });
       }
       
       if (dependencies['screener-storybook']) {
         logger.debug(`Found 'screener-storybook' dependency`);
-        detectedPlatforms.push({ platform: 'Sauce Labs Visual', magicStrings: ['screener.snapshot', 'screener.check'], framework: 'Storybook', language: 'JavaScript/TypeScript' });
+        detectedPlatforms.push({ 
+          platform: 'Sauce Labs Visual', 
+          magicStrings: ['screener.snapshot', 'screener.check'], 
+          framework: 'Storybook', 
+          language: 'JavaScript/TypeScript',
+          evidence: { source: 'package.json', match: 'screener-storybook' }
+        });
       }
 
       // Check for multiple platforms within JavaScript/TypeScript
@@ -348,13 +398,25 @@ export class Scanner {
       // Check for Applitools dependencies
       if (this.hasMavenDependency(pomXml, 'eyes-selenium-java5')) {
         logger.debug(`Found 'eyes-selenium-java5' dependency`);
-        return { platform: 'Applitools', magicStrings: ['eyes.check', 'eyes.open', 'eyes.close', 'new ChromeDriver', 'By.id', 'WebDriver'], framework: 'Selenium', language: 'Java' };
+        return { 
+          platform: 'Applitools', 
+          magicStrings: ['eyes.check', 'eyes.open', 'eyes.close', 'new ChromeDriver', 'By.id', 'WebDriver'], 
+          framework: 'Selenium', 
+          language: 'Java',
+          evidence: { source: 'pom.xml', match: 'eyes-selenium-java5' }
+        };
       }
 
       // Check for Sauce Labs dependencies
       if (this.hasMavenDependency(pomXml, 'java-client', 'com.saucelabs.visual')) {
         logger.debug(`Found 'java-client' from 'com.saucelabs.visual' dependency`);
-        return { platform: 'Sauce Labs Visual', magicStrings: ['sauceVisualCheck', 'sauceVisualSnapshot'], framework: 'Selenium', language: 'Java' };
+        return { 
+          platform: 'Sauce Labs Visual', 
+          magicStrings: ['sauceVisualCheck', 'sauceVisualSnapshot'], 
+          framework: 'Selenium', 
+          language: 'Java',
+          evidence: { source: 'pom.xml', match: 'java-client (com.saucelabs.visual)' }
+        };
       }
 
     } catch (error: any) {
@@ -380,7 +442,13 @@ export class Scanner {
       // Check for Sauce Labs dependencies
       if (lines.some(line => line.includes('saucelabs_visual'))) {
         logger.debug(`Found 'saucelabs_visual' dependency`);
-        return { platform: 'Sauce Labs Visual', magicStrings: ['SauceVisual', 'check_page', 'snapshot', 'saucelabs_visual'], framework: 'Selenium', language: 'Python' };
+        return { 
+          platform: 'Sauce Labs Visual', 
+          magicStrings: ['SauceVisual', 'check_page', 'snapshot', 'saucelabs_visual'], 
+          framework: 'Selenium', 
+          language: 'Python',
+          evidence: { source: 'requirements.txt', match: 'saucelabs_visual' }
+        };
       }
 
     } catch (error: any) {
@@ -402,7 +470,11 @@ export class Scanner {
 
     if (percyConfigs.length > 0) {
       logger.debug(`Found Percy config files: ${percyConfigs.join(', ')}`);
-      return { platform: 'Percy', magicStrings: ['percySnapshot', 'percyScreenshot'] };
+      return { 
+        platform: 'Percy', 
+        magicStrings: ['percySnapshot', 'percyScreenshot'],
+        evidence: { source: 'config-file', match: percyConfigs[0] || '.percy.yml' }
+      };
     }
 
     // Check for Applitools config files
@@ -413,7 +485,11 @@ export class Scanner {
 
     if (applitoolsConfigs.length > 0) {
       logger.debug(`Found Applitools config files: ${applitoolsConfigs.join(', ')}`);
-      return { platform: 'Applitools', magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'] };
+      return { 
+        platform: 'Applitools', 
+        magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'],
+        evidence: { source: 'config-file', match: applitoolsConfigs[0] || 'applitools.config.js' }
+      };
     }
 
     // Check for Sauce Labs config files
@@ -424,7 +500,11 @@ export class Scanner {
 
     if (sauceConfigs.length > 0) {
       logger.debug(`Found Sauce Labs config files: ${sauceConfigs.join(', ')}`);
-      return { platform: 'Sauce Labs Visual', magicStrings: ['sauceVisualCheck', 'sauceVisualSnapshot'] };
+      return { 
+        platform: 'Sauce Labs Visual', 
+        magicStrings: ['sauceVisualCheck', 'sauceVisualSnapshot'],
+        evidence: { source: 'config-file', match: sauceConfigs[0] || 'saucectl.yml' }
+      };
     }
 
     return { platform: 'unknown', magicStrings: [] };
@@ -482,7 +562,10 @@ export class Scanner {
   /**
    * Detect framework using weighted signature patterns
    */
-  private async detectFramework(absoluteScanPath: string, sourceFiles: string[]): Promise<DetectionResult['framework']> {
+  private async detectFramework(absoluteScanPath: string, sourceFiles: string[]): Promise<{
+    framework: DetectionResult['framework'];
+    evidence: { files: string[]; signatures: string[] };
+  }> {
     logger.debug(`Detecting framework from ${sourceFiles.length} source files`);
     
     // Initialize score map for each framework
@@ -493,6 +576,16 @@ export class Scanner {
       'Robot Framework': 0,
       'Appium': 0,
       'Storybook': 0
+    };
+
+    // Track evidence for each framework
+    const frameworkEvidence: Record<string, { files: string[]; signatures: string[] }> = {
+      'Cypress': { files: [], signatures: [] },
+      'Playwright': { files: [], signatures: [] },
+      'Selenium': { files: [], signatures: [] },
+      'Robot Framework': { files: [], signatures: [] },
+      'Appium': { files: [], signatures: [] },
+      'Storybook': { files: [], signatures: [] }
     };
 
     // Analyze each source file
@@ -509,6 +602,15 @@ export class Scanner {
             const matches = content.match(signature.pattern);
             if (matches && scores[frameworkName] !== undefined) {
               scores[frameworkName] += signature.weight;
+              
+              // Collect evidence
+              if (frameworkEvidence[frameworkName] && !frameworkEvidence[frameworkName].files.includes(filePath)) {
+                frameworkEvidence[frameworkName].files.push(filePath);
+              }
+              if (frameworkEvidence[frameworkName] && !frameworkEvidence[frameworkName].signatures.includes(signature.pattern.toString())) {
+                frameworkEvidence[frameworkName].signatures.push(signature.pattern.toString());
+              }
+              
               logger.debug(`Found ${frameworkName} signature in ${filePath}: ${signature.pattern} (weight: ${signature.weight}, matches: ${matches.length})`);
             }
           }
@@ -530,11 +632,17 @@ export class Scanner {
     
     if (bestFramework[1] > 0) {
       logger.debug(`Detected framework: ${bestFramework[0]} (score: ${bestFramework[1]})`);
-      return bestFramework[0] as DetectionResult['framework'];
+      return {
+        framework: bestFramework[0] as DetectionResult['framework'],
+        evidence: frameworkEvidence[bestFramework[0]] || { files: [], signatures: [] }
+      };
     }
 
     logger.debug('No framework signatures detected, defaulting to Selenium');
-    return 'Selenium'; // Default fallback
+    return {
+      framework: 'Selenium',
+      evidence: { files: [], signatures: [] }
+    };
   }
 
   /**
@@ -590,15 +698,19 @@ export class Scanner {
     let framework: DetectionResult['framework'];
     let language: DetectionResult['language'];
     let testType: DetectionResult['testType'];
+    let frameworkEvidence: { files: string[]; signatures: string[] };
 
     if (anchorResult?.framework && anchorResult?.language) {
       framework = anchorResult.framework;
       language = anchorResult.language;
       testType = this.determineTestType(framework);
+      frameworkEvidence = { files: sourceFiles, signatures: [] }; // Use source files as evidence when framework comes from anchor
       logger.debug(`Using framework from anchor: ${framework}`);
     } else {
       // Use framework signature detection for more accurate framework identification
-      framework = await this.detectFramework(absoluteScanPath, sourceFiles);
+      const frameworkResult = await this.detectFramework(absoluteScanPath, sourceFiles);
+      framework = frameworkResult.framework;
+      frameworkEvidence = frameworkResult.evidence;
       language = this.determineLanguageFromSourceFiles(sourceFiles);
       testType = this.determineTestType(framework);
       logger.debug(`Using framework from signature detection: ${framework}`);
@@ -625,6 +737,13 @@ export class Scanner {
         source: sourceFiles,
       ci,
       packageManager
+      },
+      evidence: {
+        platform: {
+          source: anchorResult?.evidence?.source || 'content-scan',
+          match: anchorResult?.evidence?.match || 'magic-strings'
+        },
+        framework: frameworkEvidence
       }
     };
   }

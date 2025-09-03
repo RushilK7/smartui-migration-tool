@@ -86,19 +86,38 @@ export class InteractiveCLI {
   }
 
   /**
-   * Displays the detection results in a clean, readable format
+   * Displays the detection results in a clean, readable format with evidence
    */
   private displayDetectionResults(detectionResult: any): void {
-    const { platform, framework, language, files } = detectionResult;
+    const { platform, framework, language, files, evidence } = detectionResult;
     
-    console.log(chalk.green(`✅ Detected ${platform} project using ${framework} and ${language}.`));
+    // Main detection summary with evidence
+    console.log(chalk.green('✅ Analysis Complete!'));
+    console.log('');
     
-    if (files.config.length > 0) {
-      console.log(chalk.blue(`📁 Configuration files: ${files.config.length} found`));
+    // Platform detection evidence
+    const platformEvidence = evidence.platform;
+    console.log(chalk.white(`- Detected Platform: ${chalk.bold(platform)} ${chalk.gray(`(Evidence: Found '${platformEvidence.match}' in ${platformEvidence.source})`)}`));
+    
+    // Framework detection evidence
+    const frameworkEvidence = evidence.framework;
+    const frameworkFileCount = frameworkEvidence.files.length;
+    console.log(chalk.white(`- Detected Framework: ${chalk.bold(framework)} ${chalk.gray(`(Evidence: Matched signatures in ${frameworkFileCount} files)`)}`));
+    
+    console.log('');
+    
+    // Show source files that were found
+    if (files.source.length > 0) {
+      console.log(chalk.white.bold(`Our deep content search found visual testing patterns in the following ${files.source.length} files:`));
+      files.source.forEach((file: string) => {
+        console.log(chalk.dim(`  - ${file}`));
+      });
+      console.log('');
     }
     
-    if (files.source.length > 0) {
-      console.log(chalk.blue(`🧪 Test files: ${files.source.length} found`));
+    // Show additional file counts
+    if (files.config.length > 0) {
+      console.log(chalk.blue(`📁 Configuration files: ${files.config.length} found`));
     }
     
     if (files.ci.length > 0) {
@@ -113,38 +132,20 @@ export class InteractiveCLI {
    */
   private async presentUserChoice(): Promise<boolean> {
     const question = {
-      type: 'list' as const,
-      name: 'action',
-      message: '? What would you like to do?',
-      choices: [
-        {
-          name: '🚀 Migrate to SmartUI',
-          value: 'migrate',
-          short: 'Migrate to SmartUI',
-        },
-        {
-          name: '❌ Exit',
-          value: 'exit',
-          short: 'Exit',
-        },
-      ],
-      default: 'migrate',
+      type: 'confirm' as const,
+      name: 'proceed',
+      message: '? Does this look correct?',
+      default: true,
     };
 
     const answers = await inquirer.prompt([question]);
 
-    switch (answers['action']) {
-      case 'migrate':
-        console.log(chalk.green('🚀 Proceeding with migration...'));
-        return true;
-      
-      case 'exit':
-        console.log(chalk.yellow('👋 Migration cancelled. Goodbye!'));
-        return false;
-      
-      default:
-        console.log(chalk.red('❌ Invalid choice. Exiting...'));
-        return false;
+    if (answers['proceed']) {
+      console.log(chalk.green('🚀 Proceeding with migration...'));
+      return true;
+    } else {
+      console.log(chalk.yellow('👋 Migration cancelled. Goodbye!'));
+      return false;
     }
   }
 

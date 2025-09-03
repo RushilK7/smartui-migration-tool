@@ -1,5 +1,19 @@
 import { Reporter } from '../src/modules/Reporter';
-import { FinalReportData, DetectionResult } from '../src/types';
+import { FinalReportData, DetectionResult, DetectionEvidence } from '../src/types';
+
+// Helper function to create evidence for tests
+function createEvidence(platformSource: string, platformMatch: string, frameworkFiles: string[] = [], frameworkSignatures: string[] = []): DetectionEvidence {
+  return {
+    platform: {
+      source: platformSource,
+      match: platformMatch
+    },
+    framework: {
+      files: frameworkFiles,
+      signatures: frameworkSignatures
+    }
+  };
+}
 
 describe('Reporter', () => {
   let reporter: Reporter;
@@ -21,7 +35,8 @@ describe('Reporter', () => {
             source: ['cypress/e2e/test.cy.js'],
             ci: ['.github/workflows/test.yml'],
             packageManager: ['package.json']
-          }
+          },
+          evidence: createEvidence('package.json', '@percy/cypress', ['cypress/e2e/test.cy.js'], ['/cy\\.visit/'])
         },
         filesCreated: ['.smartui.json'],
         filesModified: ['cypress/e2e/test.cy.js', 'package.json', '.github/workflows/test.yml'],
@@ -54,7 +69,8 @@ describe('Reporter', () => {
             source: ['src/components/Button.stories.js'],
             ci: ['.github/workflows/storybook.yml'],
             packageManager: ['package.json']
-          }
+          },
+          evidence: createEvidence('package.json', '@applitools/eyes-storybook', ['src/components/Button.stories.js'], ['/export default/', '/title:/'])
         },
         filesCreated: ['.smartui.json'],
         filesModified: ['package.json', '.github/workflows/storybook.yml'],
@@ -82,7 +98,8 @@ describe('Reporter', () => {
             source: ['tests/test_mobile.py'],
             ci: ['.github/workflows/mobile.yml'],
             packageManager: ['requirements.txt']
-          }
+          },
+          evidence: createEvidence('requirements.txt', 'percy-python', ['tests/test_mobile.py'], ['/driver\\.findElementBy/'])
         },
         filesCreated: ['.smartui.json'],
         filesModified: ['tests/test_mobile.py', '.github/workflows/mobile.yml'],
@@ -115,7 +132,8 @@ describe('Reporter', () => {
             source: ['src/test/java/Test.java'],
             ci: ['.github/workflows/test.yml'],
             packageManager: ['pom.xml']
-          }
+          },
+          evidence: createEvidence('pom.xml', 'eyes-selenium-java5', ['src/test/java/Test.java'], ['/new ChromeDriver/', '/By\\.id/'])
         },
         filesCreated: ['.smartui.json'],
         filesModified: ['src/test/java/Test.java', 'pom.xml', '.github/workflows/test.yml'],
@@ -150,7 +168,8 @@ describe('Reporter', () => {
         framework: 'Cypress',
         language: 'JavaScript/TypeScript',
         testType: 'e2e',
-        files: { config: [], source: [], ci: [], packageManager: [] }
+        files: { config: [], source: [], ci: [], packageManager: [] },
+        evidence: createEvidence('package.json', '@percy/cypress', [], [])
       };
 
       const table = reporter['generateMigrationSummaryTable'](detectionResult, 5, 10);
@@ -223,7 +242,8 @@ describe('Reporter', () => {
         framework: 'Cypress',
         language: 'JavaScript/TypeScript',
         testType: 'e2e',
-        files: { config: [], source: [], ci: [], packageManager: [] }
+        files: { config: [], source: [], ci: [], packageManager: [] },
+        evidence: createEvidence('package.json', '@percy/cypress', [], [])
       };
 
       const steps = reporter['generateNextStepsSection'](detectionResult);
@@ -242,7 +262,8 @@ describe('Reporter', () => {
         framework: 'Storybook',
         language: 'JavaScript/TypeScript',
         testType: 'storybook',
-        files: { config: [], source: [], ci: [], packageManager: [] }
+        files: { config: [], source: [], ci: [], packageManager: [] },
+        evidence: createEvidence('package.json', '@applitools/eyes-storybook', [], [])
       };
 
       const steps = reporter['generateNextStepsSection'](detectionResult);
@@ -258,7 +279,8 @@ describe('Reporter', () => {
         framework: 'Selenium',
         language: 'Python',
         testType: 'e2e',
-        files: { config: [], source: [], ci: [], packageManager: [] }
+        files: { config: [], source: [], ci: [], packageManager: [] },
+        evidence: createEvidence('requirements.txt', 'percy-python', [], [])
       };
 
       const steps = reporter['generateNextStepsSection'](detectionResult);
@@ -273,7 +295,8 @@ describe('Reporter', () => {
         framework: 'Selenium',
         language: 'Java',
         testType: 'e2e',
-        files: { config: [], source: [], ci: [], packageManager: [] }
+        files: { config: [], source: [], ci: [], packageManager: [] },
+        evidence: createEvidence('pom.xml', 'eyes-selenium-java5', [], [])
       };
 
       const steps = reporter['generateNextStepsSection'](detectionResult);
@@ -288,7 +311,8 @@ describe('Reporter', () => {
         framework: 'Appium',
         language: 'Python',
         testType: 'appium',
-        files: { config: [], source: [], ci: [], packageManager: [] }
+        files: { config: [], source: [], ci: [], packageManager: [] },
+        evidence: createEvidence('requirements.txt', 'percy-python', [], [])
       };
 
       const steps = reporter['generateNextStepsSection'](detectionResult);

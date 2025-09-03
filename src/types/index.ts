@@ -23,6 +23,22 @@ export interface AnchorResult {
   magicStrings: string[]; // e.g., ['percySnapshot', 'percyScreenshot']
   framework?: 'Cypress' | 'Selenium' | 'Playwright' | 'Storybook' | 'Robot Framework' | 'Appium';
   language?: 'JavaScript/TypeScript' | 'Java' | 'Python';
+  evidence?: {
+    source: string; // e.g., 'package.json', 'pom.xml', 'requirements.txt'
+    match: string;  // e.g., '@percy/cli', 'eyes-selenium-java5'
+  };
+}
+
+// Evidence collected during detection analysis
+export interface DetectionEvidence {
+  platform: {
+    source: string; // e.g., 'package.json', 'pom.xml', 'content-scan'
+    match: string;  // e.g., '@percy/cli', 'eyes.check'
+  };
+  framework: {
+    files: string[]; // List of files that contained framework signatures
+    signatures: string[]; // List of matching signature patterns
+  };
 }
 
 // Detection result interface for scanner output
@@ -37,6 +53,7 @@ export interface DetectionResult {
     ci: string[];          // Paths to CI/CD files
     packageManager: string[]; // Path to package.json, pom.xml, etc.
   };
+  evidence: DetectionEvidence;
 }
 
 // Type definitions for scan results (legacy - keeping for backward compatibility)
