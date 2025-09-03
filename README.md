@@ -149,26 +149,13 @@ npm start migrate --yes
 npm start migrate percy
 ```
 
-## Project Structure
-
-```
-src/
-├── commands/          # CLI commands
-├── modules/           # Core migration modules
-├── types/             # Shared type definitions
-├── utils/             # Utility functions
-└── cli.ts             # Interactive CLI workflow
-```
-
 ## Development
 
 ### Prerequisites
-
 - Node.js >= 18.0.0
 - npm, yarn, or pnpm
 
 ### Available Scripts
-
 ```bash
 npm run build    # Build the project
 npm run test     # Run tests
@@ -177,11 +164,9 @@ npm run format   # Format code
 ```
 
 ### Code Quality
-
 This project uses modern development tools for type safety, code quality, and formatting.
 
 ## Quality Assurance
-
 The SmartUI Migration Tool follows strict quality principles to ensure enterprise-grade reliability:
 
 - **Advanced Code Analysis**: Uses sophisticated parsing techniques for accurate code transformations
@@ -190,7 +175,6 @@ The SmartUI Migration Tool follows strict quality principles to ensure enterpris
 - **Future-Proof Design**: Built to handle evolving testing frameworks and patterns
 
 ## Testing and Validation
-
 The SmartUI Migration Tool has been thoroughly tested and validated:
 
 - **✅ Comprehensive Test Suite**: Unit and integration tests with Jest
@@ -202,18 +186,8 @@ The SmartUI Migration Tool has been thoroughly tested and validated:
 
 For detailed validation results, see the validation documentation in the miscellaneous folder.
 
-## Contributing
-
-1. Fork the repository
-2. Create a feature branch
-3. Make your changes
-4. Run tests and linting
-5. Submit a pull request
-
 ## License
-
 MIT License - see LICENSE file for details.
 
 ## Support
-
 For support and questions, please contact the LambdaTest team or create an issue in the repository.
