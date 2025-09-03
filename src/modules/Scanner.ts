@@ -35,7 +35,17 @@ export class Scanner {
       'percy.screenshot',
       '@percy/cypress',
       '@percy/playwright',
-      '@percy/storybook'
+      '@percy/storybook',
+      // Framework-specific patterns for Percy projects
+      'cy.visit',
+      'cy.get',
+      'cy.click',
+      'page.goto',
+      'page.click',
+      'page.fill',
+      'export default',
+      'export const',
+      'title:'
     ],
     'Applitools': [
       'eyes.check',
@@ -57,6 +67,59 @@ export class Scanner {
       'SauceVisual',
       'check_page',
       'snapshot'
+    ]
+  };
+
+  // Framework signature patterns with weights for intelligent framework detection
+  private readonly frameworkSignatures = {
+    Cypress: [
+      { pattern: /cy\.(visit|get|contains|click|type|find|should|wait|intercept|request)\(/, weight: 0.9 },
+      { pattern: /Cypress\.Commands\.add/, weight: 0.8 },
+      { pattern: /cypress\.config\./, weight: 0.7 },
+      { pattern: /cy\.(on|off|window|document)\(/, weight: 0.6 },
+      { pattern: /describe\s*\(\s*['"]/, weight: 0.3 }, // Weak signal, also in Mocha/Jest
+      { pattern: /it\s*\(\s*['"]/, weight: 0.3 },         // Weak signal, also in Mocha/Jest
+    ],
+    Playwright: [
+      { pattern: /page\.(goto|click|fill|locator|getByRole|getByText|getByLabel)\(/, weight: 0.9 },
+      { pattern: /expect\s*\(\s*page\s*\)/, weight: 0.8 },
+      { pattern: /test\s*\(\s*['"]/, weight: 0.5 },     // Stronger signal than 'it'
+      { pattern: /browser\.(newPage|close)\(/, weight: 0.7 },
+      { pattern: /context\.(newPage|close)\(/, weight: 0.6 },
+      { pattern: /playwright\.config\./, weight: 0.7 },
+    ],
+    Selenium: [
+      { pattern: /new ChromeDriver\(\)/, weight: 0.7 },
+      { pattern: /new FirefoxDriver\(\)/, weight: 0.7 },
+      { pattern: /new EdgeDriver\(\)/, weight: 0.7 },
+      { pattern: /WebDriverWait\s*\(/, weight: 0.6 },
+      { pattern: /By\.(id|cssSelector|xpath|className|tagName)\(/, weight: 0.5 },
+      { pattern: /driver\.(findElement|findElements)\(/, weight: 0.6 },
+      { pattern: /Actions\s*\(/, weight: 0.5 },
+      { pattern: /JavascriptExecutor/, weight: 0.4 },
+    ],
+    'Robot Framework': [
+      { pattern: /Open Browser/, weight: 0.8 },
+      { pattern: /Click Element/, weight: 0.7 },
+      { pattern: /Input Text/, weight: 0.7 },
+      { pattern: /Get Text/, weight: 0.6 },
+      { pattern: /Wait Until Element Is Visible/, weight: 0.6 },
+      { pattern: /Robot Framework/, weight: 0.5 },
+    ],
+    Appium: [
+      { pattern: /driver\.findElementBy/, weight: 0.8 },
+      { pattern: /MobileElement/, weight: 0.7 },
+      { pattern: /AppiumDriver/, weight: 0.7 },
+      { pattern: /DesiredCapabilities/, weight: 0.6 },
+      { pattern: /TouchAction/, weight: 0.6 },
+      { pattern: /appium/, weight: 0.5 },
+    ],
+    Storybook: [
+      { pattern: /\.stories\.(js|ts|jsx|tsx)/, weight: 0.9 },
+      { pattern: /export default.*title:/, weight: 0.8 },
+      { pattern: /export const.*=.*\(\)/, weight: 0.7 },
+      { pattern: /\.add\(/, weight: 0.6 },
+      { pattern: /Storybook/, weight: 0.5 },
     ]
   };
 
@@ -90,6 +153,13 @@ export class Scanner {
           ...this.platformMagicStrings.Percy,
           ...this.platformMagicStrings.Applitools,
           ...this.platformMagicStrings['Sauce Labs Visual']
+        ];
+      } else if (!anchorResult.framework || !anchorResult.language) {
+        // We have a platform anchor but no framework info - use broader magic strings for better detection
+        logger.debug('Platform anchor found but no framework info, using broader magic strings');
+        magicStrings = [
+          ...anchorResult.magicStrings,
+          ...this.platformMagicStrings[anchorResult.platform]
         ];
       }
 
@@ -210,7 +280,7 @@ export class Scanner {
       
       if (dependencies['@percy/storybook']) {
         logger.debug(`Found '@percy/storybook' dependency`);
-        detectedPlatforms.push({ platform: 'Percy', magicStrings: ['percySnapshot', 'percyScreenshot'], framework: 'Storybook', language: 'JavaScript/TypeScript' });
+        detectedPlatforms.push({ platform: 'Percy', magicStrings: ['percySnapshot', 'percyScreenshot', 'export default', 'export const', 'title:'], framework: 'Storybook', language: 'JavaScript/TypeScript' });
       }
 
       // Check for Applitools dependencies
@@ -278,7 +348,7 @@ export class Scanner {
       // Check for Applitools dependencies
       if (this.hasMavenDependency(pomXml, 'eyes-selenium-java5')) {
         logger.debug(`Found 'eyes-selenium-java5' dependency`);
-        return { platform: 'Applitools', magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'], framework: 'Selenium', language: 'Java' };
+        return { platform: 'Applitools', magicStrings: ['eyes.check', 'eyes.open', 'eyes.close', 'new ChromeDriver', 'By.id', 'WebDriver'], framework: 'Selenium', language: 'Java' };
       }
 
       // Check for Sauce Labs dependencies
@@ -332,7 +402,7 @@ export class Scanner {
 
     if (percyConfigs.length > 0) {
       logger.debug(`Found Percy config files: ${percyConfigs.join(', ')}`);
-      return { platform: 'Percy', magicStrings: ['percySnapshot', 'percyScreenshot'], framework: 'Selenium', language: 'JavaScript/TypeScript' };
+      return { platform: 'Percy', magicStrings: ['percySnapshot', 'percyScreenshot'] };
     }
 
     // Check for Applitools config files
@@ -343,7 +413,7 @@ export class Scanner {
 
     if (applitoolsConfigs.length > 0) {
       logger.debug(`Found Applitools config files: ${applitoolsConfigs.join(', ')}`);
-      return { platform: 'Applitools', magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'], framework: 'Selenium', language: 'JavaScript/TypeScript' };
+      return { platform: 'Applitools', magicStrings: ['eyes.check', 'eyes.open', 'eyes.close'] };
     }
 
     // Check for Sauce Labs config files
@@ -354,7 +424,7 @@ export class Scanner {
 
     if (sauceConfigs.length > 0) {
       logger.debug(`Found Sauce Labs config files: ${sauceConfigs.join(', ')}`);
-      return { platform: 'Sauce Labs Visual', magicStrings: ['sauceVisualCheck', 'sauceVisualSnapshot'], framework: 'Selenium', language: 'JavaScript/TypeScript' };
+      return { platform: 'Sauce Labs Visual', magicStrings: ['sauceVisualCheck', 'sauceVisualSnapshot'] };
     }
 
     return { platform: 'unknown', magicStrings: [] };
@@ -410,6 +480,64 @@ export class Scanner {
   }
 
   /**
+   * Detect framework using weighted signature patterns
+   */
+  private async detectFramework(absoluteScanPath: string, sourceFiles: string[]): Promise<DetectionResult['framework']> {
+    logger.debug(`Detecting framework from ${sourceFiles.length} source files`);
+    
+    // Initialize score map for each framework
+    const scores: Record<string, number> = {
+      'Cypress': 0,
+      'Playwright': 0,
+      'Selenium': 0,
+      'Robot Framework': 0,
+      'Appium': 0,
+      'Storybook': 0
+    };
+
+    // Analyze each source file
+    for (const filePath of sourceFiles) {
+      try {
+        const fullPath = path.join(absoluteScanPath, filePath);
+        const content = await fs.readFile(fullPath, 'utf-8');
+        
+        logger.debug(`Analyzing file: ${filePath} (${content.length} characters)`);
+        
+        // Check each framework's signatures
+        for (const [frameworkName, signatures] of Object.entries(this.frameworkSignatures)) {
+          for (const signature of signatures) {
+            const matches = content.match(signature.pattern);
+            if (matches && scores[frameworkName] !== undefined) {
+              scores[frameworkName] += signature.weight;
+              logger.debug(`Found ${frameworkName} signature in ${filePath}: ${signature.pattern} (weight: ${signature.weight}, matches: ${matches.length})`);
+            }
+          }
+        }
+      } catch (error: any) {
+        logger.debug(`Could not read file ${filePath} for framework detection. Reason: ${error.message}`);
+        // Continue to next file without crashing
+      }
+    }
+
+    // Find the framework with the highest score
+    const bestFramework = Object.entries(scores).reduce((a, b) => {
+      const scoreA = scores[a[0]] || 0;
+      const scoreB = scores[b[0]] || 0;
+      return scoreA > scoreB ? a : b;
+    });
+
+    logger.debug(`Framework detection scores: ${JSON.stringify(scores)}`);
+    
+    if (bestFramework[1] > 0) {
+      logger.debug(`Detected framework: ${bestFramework[0]} (score: ${bestFramework[1]})`);
+      return bestFramework[0] as DetectionResult['framework'];
+    }
+
+    logger.debug('No framework signatures detected, defaulting to Selenium');
+    return 'Selenium'; // Default fallback
+  }
+
+  /**
    * Determine platform from content when no anchor is found
    */
   private async determinePlatformFromContent(absoluteScanPath: string, sourceFiles: string[]): Promise<AnchorResult['platform']> {
@@ -458,7 +586,7 @@ export class Scanner {
    * Create final DetectionResult with all collected information
    */
   private async createDetectionResult(platform: 'Percy' | 'Applitools' | 'Sauce Labs Visual', absoluteScanPath: string, sourceFiles: string[], anchorResult?: AnchorResult): Promise<DetectionResult> {
-    // Use framework and language from anchor result if available, otherwise determine from source files
+    // Use framework and language from anchor result if available, otherwise use framework signature detection
     let framework: DetectionResult['framework'];
     let language: DetectionResult['language'];
     let testType: DetectionResult['testType'];
@@ -467,11 +595,13 @@ export class Scanner {
       framework = anchorResult.framework;
       language = anchorResult.language;
       testType = this.determineTestType(framework);
+      logger.debug(`Using framework from anchor: ${framework}`);
     } else {
-      const result = this.determineFrameworkAndLanguage(platform, sourceFiles);
-      framework = result.framework;
-      language = result.language;
-      testType = result.testType;
+      // Use framework signature detection for more accurate framework identification
+      framework = await this.detectFramework(absoluteScanPath, sourceFiles);
+      language = this.determineLanguageFromSourceFiles(sourceFiles);
+      testType = this.determineTestType(framework);
+      logger.debug(`Using framework from signature detection: ${framework}`);
     }
     
     // Collect other file types
@@ -546,6 +676,24 @@ export class Scanner {
     }
 
     return { framework, language, testType };
+  }
+
+  /**
+   * Determine language from source file extensions
+   */
+  private determineLanguageFromSourceFiles(sourceFiles: string[]): DetectionResult['language'] {
+    const hasJsFiles = sourceFiles.some(file => /\.(js|ts|jsx|tsx)$/.test(file));
+    const hasJavaFiles = sourceFiles.some(file => /\.java$/.test(file));
+    const hasPythonFiles = sourceFiles.some(file => /\.py$/.test(file));
+    const hasRobotFiles = sourceFiles.some(file => /\.robot$/.test(file));
+
+    if (hasJavaFiles) {
+      return 'Java';
+    } else if (hasPythonFiles || hasRobotFiles) {
+      return 'Python';
+    } else {
+      return 'JavaScript/TypeScript'; // Default for JS/TS files
+    }
   }
 
   /**

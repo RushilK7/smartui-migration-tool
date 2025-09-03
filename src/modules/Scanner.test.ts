@@ -840,4 +840,238 @@ percySnapshot('Page Name');
       expect(result.files.packageManager).toContain('package.json');
     });
   });
+
+  describe('Framework Signature Engine', () => {
+    it('should detect Cypress framework from generic Percy dependency', async () => {
+      mock({
+        '/cypress-signature-project': {
+          'package.json': JSON.stringify({
+            name: 'cypress-signature-project',
+            dependencies: {
+              '@percy/cli': '^1.0.0' // Generic Percy dependency, doesn't reveal framework
+            }
+          }),
+          '.percy.yml': 'version: 2\nsnapshot:\n  widths: [1280, 375]', // Add config to provide anchor
+          'cypress': {
+            'e2e': {
+              'login.spec.js': `describe('Login Tests', () => {
+                it('should login successfully', () => {
+                  cy.visit('http://localhost:3000/login');
+                  cy.get('[data-testid="email"]').type('user@example.com');
+                  cy.get('[data-testid="password"]').type('password123');
+                  cy.get('[data-testid="login-button"]').click();
+                  cy.url().should('include', '/dashboard');
+                });
+              });`
+            }
+          }
+        }
+      });
+
+      const scanner = new Scanner('/cypress-signature-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Percy');
+      expect(result.framework).toBe('Cypress'); // Should detect from cy.visit, cy.get, etc.
+      expect(result.language).toBe('JavaScript/TypeScript');
+      expect(result.testType).toBe('e2e');
+      expect(result.files.source).toContain('cypress/e2e/login.spec.js');
+    });
+
+    it('should detect Playwright framework from generic Percy dependency', async () => {
+      mock({
+        '/playwright-signature-project': {
+          'package.json': JSON.stringify({
+            name: 'playwright-signature-project',
+            dependencies: {
+              '@percy/cli': '^1.0.0' // Generic Percy dependency
+            }
+          }),
+          '.percy.yml': 'version: 2\nsnapshot:\n  widths: [1280, 375]', // Add config to provide anchor
+          'tests': {
+            'login.spec.ts': `import { test, expect } from '@playwright/test';
+
+test('should login successfully', async ({ page }) => {
+  await page.goto('http://localhost:3000/login');
+  await page.fill('[data-testid="email"]', 'user@example.com');
+  await page.fill('[data-testid="password"]', 'password123');
+  await page.click('[data-testid="login-button"]');
+  await expect(page).toHaveURL(/.*dashboard/);
+});`
+          }
+        }
+      });
+
+      const scanner = new Scanner('/playwright-signature-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Percy');
+      expect(result.framework).toBe('Playwright'); // Should detect from page.goto, page.fill, etc.
+      expect(result.language).toBe('JavaScript/TypeScript');
+      expect(result.testType).toBe('e2e');
+      expect(result.files.source).toContain('tests/login.spec.ts');
+    });
+
+    it('should detect Selenium framework from Java files', async () => {
+      mock({
+        '/selenium-signature-project': {
+          'pom.xml': `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>selenium-signature-project</artifactId>
+  <version>1.0.0</version>
+  
+  <dependencies>
+    <dependency>
+      <groupId>com.applitools</groupId>
+      <artifactId>eyes-selenium-java5</artifactId>
+      <version>5.56.0</version>
+    </dependency>
+  </dependencies>
+</project>`,
+          'src': {
+            'test': {
+              'java': {
+                'LoginTest.java': `import org.openqa.selenium.WebDriver;
+import org.openqa.selenium.chrome.ChromeDriver;
+import org.openqa.selenium.By;
+import org.openqa.selenium.WebElement;
+
+public class LoginTest {
+    public void testLogin() {
+        WebDriver driver = new ChromeDriver();
+        driver.get("http://localhost:3000/login");
+        WebElement emailField = driver.findElement(By.id("email"));
+        emailField.sendKeys("user@example.com");
+        driver.quit();
+    }
+}`
+              }
+            }
+          }
+        }
+      });
+
+      const scanner = new Scanner('/selenium-signature-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Applitools');
+      expect(result.framework).toBe('Selenium'); // Should detect from new ChromeDriver(), By.id(), etc.
+      expect(result.language).toBe('Java');
+      expect(result.testType).toBe('e2e');
+      expect(result.files.source).toContain('src/test/java/LoginTest.java');
+    });
+
+    it('should detect Storybook framework from story files', async () => {
+      mock({
+        '/storybook-signature-project': {
+          'package.json': JSON.stringify({
+            name: 'storybook-signature-project',
+            dependencies: {
+              '@percy/storybook': '^3.0.0'
+            }
+          }),
+          'src': {
+            'components': {
+              'Button.stories.js': `export default {
+  title: 'Components/Button',
+  component: Button,
+};
+
+export const Primary = () => <Button primary>Button</Button>;
+export const Secondary = () => <Button>Button</Button>;`
+            }
+          },
+          '.storybook': {
+            'main.js': `module.exports = {
+  stories: ['../src/**/*.stories.@(js|jsx|ts|tsx)'],
+  addons: ['@storybook/addon-essentials'],
+};`
+          }
+        }
+      });
+
+      const scanner = new Scanner('/storybook-signature-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Percy');
+      expect(result.framework).toBe('Storybook'); // Should detect from .stories.js, title:, export const
+      expect(result.language).toBe('JavaScript/TypeScript');
+      expect(result.testType).toBe('storybook');
+      expect(result.files.source).toContain('src/components/Button.stories.js');
+    });
+
+    it('should handle mixed framework signatures and choose the strongest', async () => {
+      mock({
+        '/mixed-signature-project': {
+          'package.json': JSON.stringify({
+            name: 'mixed-signature-project',
+            dependencies: {
+              '@percy/cli': '^1.0.0'
+            }
+          }),
+          '.percy.yml': 'version: 2\nsnapshot:\n  widths: [1280, 375]', // Add config to provide anchor
+          'tests': {
+            'mixed.spec.js': `// This file has both Cypress and generic test patterns
+describe('Mixed Tests', () => {
+  it('should test something', () => {
+    // Cypress-specific code (stronger signal)
+    cy.visit('http://localhost:3000');
+    cy.get('[data-testid="button"]').click();
+    
+    // Generic test code (weaker signal)
+    expect(true).toBe(true);
+  });
+});`
+          }
+        }
+      });
+
+      const scanner = new Scanner('/mixed-signature-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Percy');
+      expect(result.framework).toBe('Cypress'); // Should choose Cypress due to stronger signals
+      expect(result.language).toBe('JavaScript/TypeScript');
+      expect(result.testType).toBe('e2e');
+    });
+
+    it('should default to Selenium when no framework signatures are found', async () => {
+      mock({
+        '/generic-project': {
+          'package.json': JSON.stringify({
+            name: 'generic-project',
+            dependencies: {
+              '@percy/cli': '^1.0.0'
+            }
+          }),
+          '.percy.yml': 'version: 2\nsnapshot:\n  widths: [1280, 375]', // Add config to provide anchor
+          'tests': {
+            'generic.spec.js': `// Generic test file with no framework-specific patterns
+function testSomething() {
+  console.log('This is a generic test');
+  return true;
+}
+
+testSomething();`
+          }
+        }
+      });
+
+      const scanner = new Scanner('/generic-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Percy');
+      expect(result.framework).toBe('Selenium'); // Should default to Selenium
+      expect(result.language).toBe('JavaScript/TypeScript');
+      expect(result.testType).toBe('e2e');
+    });
+  });
 });
