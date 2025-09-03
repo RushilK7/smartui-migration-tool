@@ -4,6 +4,7 @@ import chalk from 'chalk';
 import { WelcomeScreen } from './utils/welcome';
 import { Scanner } from './modules/Scanner';
 import { PlatformNotDetectedError, MultiplePlatformsDetectedError } from './types';
+import { logger } from './utils/Logger';
 
 /**
  * Interactive CLI workflow for the SmartUI Migration Tool
@@ -78,7 +79,9 @@ export class InteractiveCLI {
    * Performs actual project scanning using the Scanner module
    */
   private async scanProject() {
-    const scanner = new Scanner(this.projectPath);
+    // Get verbose flag from logger instance
+    const verbose = logger['isVerbose'] || false;
+    const scanner = new Scanner(this.projectPath, verbose);
     return await scanner.scan();
   }
 

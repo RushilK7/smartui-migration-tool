@@ -4,6 +4,7 @@ import fg from 'fast-glob';
 import yaml from 'js-yaml';
 import { XMLParser } from 'fast-xml-parser';
 import { DetectionResult, PlatformNotDetectedError, MultiplePlatformsDetectedError } from '../types';
+import { logger } from '../utils/Logger';
 
 /**
  * Scanner module for analyzing user's project structure and dependencies
@@ -11,6 +12,7 @@ import { DetectionResult, PlatformNotDetectedError, MultiplePlatformsDetectedErr
  */
 export class Scanner {
   private projectPath: string;
+  private verbose: boolean;
   private ignorePatterns = [
     'node_modules/**',
     '.git/**',
@@ -23,8 +25,9 @@ export class Scanner {
     '.DS_Store'
   ];
 
-  constructor(projectPath: string) {
+  constructor(projectPath: string, verbose: boolean = false) {
     this.projectPath = projectPath;
+    this.verbose = verbose;
   }
 
   /**
@@ -33,25 +36,38 @@ export class Scanner {
    */
   public async scan(): Promise<DetectionResult> {
     try {
+      // Log the target directory being scanned
+      const resolvedPath = path.resolve(this.projectPath);
+      logger.debug(`Scanning target directory: ${resolvedPath}`);
+
       // Priority 1: Dependency Analysis (Most Reliable)
+      logger.debug('Starting Priority 1: Dependency Analysis');
       const dependencyResult = await this.analyzeDependencies();
       if (dependencyResult) {
+        logger.debug('Dependency analysis successful - platform detected');
         return dependencyResult;
       }
+      logger.debug('Dependency analysis completed - no platform detected');
 
       // Priority 2: Configuration File Analysis (Fallback)
+      logger.debug('Starting Priority 2: Configuration File Analysis');
       const configResult = await this.analyzeConfigurationFiles();
       if (configResult) {
+        logger.debug('Configuration analysis successful - platform detected');
         return configResult;
       }
+      logger.debug('Configuration analysis completed - no platform detected');
 
       // No platform detected
+      logger.debug('No platform detected through any analysis method');
       throw new PlatformNotDetectedError();
 
     } catch (error) {
       if (error instanceof PlatformNotDetectedError || error instanceof MultiplePlatformsDetectedError) {
+        logger.debug(`Platform detection error: ${error.message}`);
         throw error;
       }
+      logger.debug(`Scanner error: ${error instanceof Error ? error.message : 'Unknown error'}`);
       throw new Error(`Scanner error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
@@ -60,28 +76,50 @@ export class Scanner {
    * Priority 1: Analyze dependencies in package.json, pom.xml, requirements.txt
    */
   private async analyzeDependencies(): Promise<DetectionResult | null> {
+    logger.debug('Searching for dependency files (package.json, pom.xml, requirements.txt)');
     const detectedPlatforms: DetectionResult[] = [];
 
     // Check JavaScript/TypeScript projects
+    logger.debug('Checking JavaScript/TypeScript dependencies...');
     const jsResult = await this.analyzeJavaScriptDependencies();
-    if (jsResult) detectedPlatforms.push(jsResult);
+    if (jsResult) {
+      logger.debug(`JavaScript/TypeScript analysis result: ${jsResult.platform} detected`);
+      detectedPlatforms.push(jsResult);
+    } else {
+      logger.debug('No JavaScript/TypeScript platform detected');
+    }
 
     // Check Java projects
+    logger.debug('Checking Java dependencies...');
     const javaResult = await this.analyzeJavaDependencies();
-    if (javaResult) detectedPlatforms.push(javaResult);
+    if (javaResult) {
+      logger.debug(`Java analysis result: ${javaResult.platform} detected`);
+      detectedPlatforms.push(javaResult);
+    } else {
+      logger.debug('No Java platform detected');
+    }
 
     // Check Python projects
+    logger.debug('Checking Python dependencies...');
     const pythonResult = await this.analyzePythonDependencies();
-    if (pythonResult) detectedPlatforms.push(pythonResult);
+    if (pythonResult) {
+      logger.debug(`Python analysis result: ${pythonResult.platform} detected`);
+      detectedPlatforms.push(pythonResult);
+    } else {
+      logger.debug('No Python platform detected');
+    }
 
     if (detectedPlatforms.length === 0) {
+      logger.debug('No platforms detected through dependency analysis');
       return null;
     }
 
     if (detectedPlatforms.length > 1) {
+      logger.debug(`Multiple platforms detected: ${detectedPlatforms.map(p => p.platform).join(', ')}`);
       throw new MultiplePlatformsDetectedError();
     }
 
+    logger.debug(`Single platform detected: ${detectedPlatforms[0]!.platform}`);
     return detectedPlatforms[0]!;
   }
 
@@ -92,6 +130,16 @@ export class Scanner {
     const packageJsonPath = path.join(this.projectPath, 'package.json');
     
     try {
+      // Check if package.json exists
+      try {
+        await fs.access(packageJsonPath);
+        logger.debug(`Found package.json at: ${packageJsonPath}`);
+      } catch {
+        logger.debug('No package.json file found in project.');
+        return null;
+      }
+
+      logger.debug(`Reading content of ${packageJsonPath}...`);
       const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
       const packageJson = JSON.parse(packageJsonContent);
       const dependencies = { ...packageJson.dependencies, ...packageJson.devDependencies };
@@ -99,51 +147,99 @@ export class Scanner {
       const detectedPlatforms: DetectionResult[] = [];
 
       // Check for Percy dependencies
+      logger.debug('Checking package.json for Percy dependencies...');
       if (dependencies['@percy/cypress']) {
+        logger.debug(`Result: Found '@percy/cypress'. Platform detected as Percy.`);
         detectedPlatforms.push(await this.createDetectionResult('Percy', 'Cypress', 'JavaScript/TypeScript'));
+      } else {
+        logger.debug(`Result: No '@percy/cypress' dependency found.`);
       }
+      
       if (dependencies['@percy/playwright']) {
+        logger.debug(`Result: Found '@percy/playwright'. Platform detected as Percy.`);
         detectedPlatforms.push(await this.createDetectionResult('Percy', 'Playwright', 'JavaScript/TypeScript'));
+      } else {
+        logger.debug(`Result: No '@percy/playwright' dependency found.`);
       }
+      
       if (dependencies['@percy/storybook']) {
+        logger.debug(`Result: Found '@percy/storybook' dependency. Checking for .storybook directory...`);
         const hasStorybookDir = await this.hasDirectory('.storybook');
         if (hasStorybookDir) {
+          logger.debug(`Result: Found .storybook directory. Platform detected as Percy.`);
           detectedPlatforms.push(await this.createDetectionResult('Percy', 'Storybook', 'JavaScript/TypeScript'));
+        } else {
+          logger.debug(`Result: No .storybook directory found.`);
         }
+      } else {
+        logger.debug(`Result: No '@percy/storybook' dependency found.`);
       }
 
       // Check for Applitools dependencies
+      logger.debug('Checking package.json for Applitools dependencies...');
       if (dependencies['@applitools/eyes-cypress']) {
+        logger.debug(`Result: Found '@applitools/eyes-cypress'. Platform detected as Applitools.`);
         detectedPlatforms.push(await this.createDetectionResult('Applitools', 'Cypress', 'JavaScript/TypeScript'));
+      } else {
+        logger.debug(`Result: No '@applitools/eyes-cypress' dependency found.`);
       }
+      
       if (dependencies['@applitools/eyes-playwright']) {
+        logger.debug(`Result: Found '@applitools/eyes-playwright'. Platform detected as Applitools.`);
         detectedPlatforms.push(await this.createDetectionResult('Applitools', 'Playwright', 'JavaScript/TypeScript'));
+      } else {
+        logger.debug(`Result: No '@applitools/eyes-playwright' dependency found.`);
       }
+      
       if (dependencies['@applitools/eyes-storybook']) {
+        logger.debug(`Result: Found '@applitools/eyes-storybook' dependency. Checking for .storybook directory...`);
         const hasStorybookDir = await this.hasDirectory('.storybook');
         if (hasStorybookDir) {
+          logger.debug(`Result: Found .storybook directory. Platform detected as Applitools.`);
           detectedPlatforms.push(await this.createDetectionResult('Applitools', 'Storybook', 'JavaScript/TypeScript'));
+        } else {
+          logger.debug(`Result: No .storybook directory found.`);
         }
+      } else {
+        logger.debug(`Result: No '@applitools/eyes-storybook' dependency found.`);
       }
 
       // Check for Sauce Labs dependencies
+      logger.debug('Checking package.json for Sauce Labs dependencies...');
       if (dependencies['@saucelabs/cypress-visual-plugin']) {
+        logger.debug(`Result: Found '@saucelabs/cypress-visual-plugin'. Platform detected as Sauce Labs Visual.`);
         detectedPlatforms.push(await this.createDetectionResult('Sauce Labs Visual', 'Cypress', 'JavaScript/TypeScript'));
+      } else {
+        logger.debug(`Result: No '@saucelabs/cypress-visual-plugin' dependency found.`);
       }
+      
       if (dependencies['screener-storybook']) {
+        logger.debug(`Result: Found 'screener-storybook' dependency. Checking for .storybook directory...`);
         const hasStorybookDir = await this.hasDirectory('.storybook');
         if (hasStorybookDir) {
+          logger.debug(`Result: Found .storybook directory. Platform detected as Sauce Labs Visual.`);
           detectedPlatforms.push(await this.createDetectionResult('Sauce Labs Visual', 'Storybook', 'JavaScript/TypeScript'));
+        } else {
+          logger.debug(`Result: No .storybook directory found.`);
         }
+      } else {
+        logger.debug(`Result: No 'screener-storybook' dependency found.`);
       }
 
       // Check for multiple platforms within JavaScript/TypeScript
       if (detectedPlatforms.length > 1) {
+        logger.debug(`Multiple platforms detected in JavaScript/TypeScript: ${detectedPlatforms.map(p => p.platform).join(', ')}`);
         throw new MultiplePlatformsDetectedError();
       }
 
       // Return first detected platform (or null if none)
-      return detectedPlatforms.length > 0 ? detectedPlatforms[0]! : null;
+      if (detectedPlatforms.length > 0) {
+        logger.debug(`JavaScript/TypeScript analysis completed: ${detectedPlatforms[0]!.platform} detected`);
+        return detectedPlatforms[0]!;
+      } else {
+        logger.debug('JavaScript/TypeScript analysis completed: No platforms detected');
+        return null;
+      }
 
     } catch (error) {
       // Re-throw MultiplePlatformsDetectedError if it was thrown
@@ -163,36 +259,72 @@ export class Scanner {
     const pomXmlPath = path.join(this.projectPath, 'pom.xml');
     
     try {
+      // Check if pom.xml exists
+      try {
+        await fs.access(pomXmlPath);
+        logger.debug(`Found pom.xml at: ${pomXmlPath}`);
+      } catch {
+        logger.debug('No pom.xml file found in project.');
+        return null;
+      }
+
+      logger.debug(`Reading content of ${pomXmlPath}...`);
       const pomXmlContent = await fs.readFile(pomXmlPath, 'utf-8');
       const parser = new XMLParser();
       const pomXml = parser.parse(pomXmlContent);
 
       // Check for Applitools dependencies
+      logger.debug('Checking pom.xml for Applitools dependencies...');
       if (this.hasMavenDependency(pomXml, 'eyes-selenium-java5')) {
+        logger.debug(`Result: Found 'eyes-selenium-java5'. Platform detected as Applitools.`);
         return await this.createDetectionResult('Applitools', 'Selenium', 'Java');
+      } else {
+        logger.debug(`Result: No 'eyes-selenium-java5' dependency found.`);
       }
 
       // Check for Sauce Labs dependencies
+      logger.debug('Checking pom.xml for Sauce Labs dependencies...');
       if (this.hasMavenDependency(pomXml, 'java-client', 'com.saucelabs.visual')) {
+        logger.debug(`Result: Found 'java-client' from 'com.saucelabs.visual'. Platform detected as Sauce Labs Visual.`);
         return await this.createDetectionResult('Sauce Labs Visual', 'Selenium', 'Java');
+      } else {
+        logger.debug(`Result: No 'java-client' from 'com.saucelabs.visual' dependency found.`);
       }
 
       // Check for Appium Java projects
+      logger.debug('Checking pom.xml for Appium dependencies...');
       const hasAppiumClient = this.hasMavenDependency(pomXml, 'appium-java-client', 'io.appium');
       if (hasAppiumClient) {
+        logger.debug(`Result: Found 'appium-java-client'. Checking for visual testing platforms...`);
+        
         // Check for Percy Appium
         if (this.hasMavenDependency(pomXml, 'percy-appium-java', 'io.percy')) {
+          logger.debug(`Result: Found 'percy-appium-java'. Platform detected as Percy.`);
           return await this.createDetectionResult('Percy', 'Appium', 'Java');
+        } else {
+          logger.debug(`Result: No 'percy-appium-java' dependency found.`);
         }
+        
         // Check for Applitools Appium
         if (this.hasMavenDependency(pomXml, 'eyes-appium-java5', 'com.applitools')) {
+          logger.debug(`Result: Found 'eyes-appium-java5'. Platform detected as Applitools.`);
           return await this.createDetectionResult('Applitools', 'Appium', 'Java');
+        } else {
+          logger.debug(`Result: No 'eyes-appium-java5' dependency found.`);
         }
+        
         // Check for Sauce Labs Appium
         if (this.hasMavenDependency(pomXml, 'java-client', 'com.saucelabs.visual')) {
+          logger.debug(`Result: Found 'java-client' from 'com.saucelabs.visual'. Platform detected as Sauce Labs Visual.`);
           return await this.createDetectionResult('Sauce Labs Visual', 'Appium', 'Java');
+        } else {
+          logger.debug(`Result: No 'java-client' from 'com.saucelabs.visual' dependency found.`);
         }
+      } else {
+        logger.debug(`Result: No 'appium-java-client' dependency found.`);
       }
+
+      logger.debug('Java analysis completed: No platforms detected');
 
     } catch (error) {
       // pom.xml doesn't exist or is invalid
@@ -208,36 +340,72 @@ export class Scanner {
     const requirementsPath = path.join(this.projectPath, 'requirements.txt');
     
     try {
+      // Check if requirements.txt exists
+      try {
+        await fs.access(requirementsPath);
+        logger.debug(`Found requirements.txt at: ${requirementsPath}`);
+      } catch {
+        logger.debug('No requirements.txt file found in project.');
+        return null;
+      }
+
+      logger.debug(`Reading content of ${requirementsPath}...`);
       const requirementsContent = await fs.readFile(requirementsPath, 'utf-8');
       const lines = requirementsContent.split('\n').map(line => line.trim());
 
       // Check for Appium Python projects
+      logger.debug('Checking requirements.txt for Appium dependencies...');
       const hasAppiumClient = lines.some(line => line.includes('Appium-Python-Client'));
       if (hasAppiumClient) {
+        logger.debug(`Result: Found 'Appium-Python-Client'. Checking for visual testing platforms...`);
+        
         // Check for Percy Appium
         if (lines.some(line => line.includes('percy-appium-app'))) {
+          logger.debug(`Result: Found 'percy-appium-app'. Platform detected as Percy.`);
           return await this.createDetectionResult('Percy', 'Appium', 'Python');
+        } else {
+          logger.debug(`Result: No 'percy-appium-app' dependency found.`);
         }
+        
         // Check for Applitools Appium
         if (lines.some(line => line.includes('eyes-selenium'))) {
+          logger.debug(`Result: Found 'eyes-selenium'. Platform detected as Applitools.`);
           return await this.createDetectionResult('Applitools', 'Appium', 'Python');
+        } else {
+          logger.debug(`Result: No 'eyes-selenium' dependency found.`);
         }
+        
         // Check for Sauce Labs Appium
         if (lines.some(line => line.includes('saucelabs_visual'))) {
+          logger.debug(`Result: Found 'saucelabs_visual'. Platform detected as Sauce Labs Visual.`);
           return await this.createDetectionResult('Sauce Labs Visual', 'Appium', 'Python');
+        } else {
+          logger.debug(`Result: No 'saucelabs_visual' dependency found.`);
         }
+      } else {
+        logger.debug(`Result: No 'Appium-Python-Client' dependency found.`);
       }
 
       // Check for Sauce Labs Robot Framework
+      logger.debug('Checking requirements.txt for Robot Framework dependencies...');
       if (lines.some(line => line.includes('saucelabs_visual'))) {
+        logger.debug(`Result: Found 'saucelabs_visual'. Checking for Robot Framework files...`);
         const hasRobotFiles = await this.hasFiles('**/*.robot');
         if (hasRobotFiles) {
+          logger.debug(`Result: Found .robot files. Platform detected as Sauce Labs Visual.`);
           return await this.createDetectionResult('Sauce Labs Visual', 'Robot Framework', 'Python');
+        } else {
+          logger.debug(`Result: No .robot files found.`);
         }
+      } else {
+        logger.debug(`Result: No 'saucelabs_visual' dependency found.`);
       }
+
+      logger.debug('Python analysis completed: No platforms detected');
 
     } catch (error) {
       // requirements.txt doesn't exist
+      logger.debug('Python analysis failed: requirements.txt not accessible');
     }
 
     return null;
@@ -247,40 +415,58 @@ export class Scanner {
    * Priority 2: Analyze configuration files as fallback
    */
   private async analyzeConfigurationFiles(): Promise<DetectionResult | null> {
+    logger.debug('Searching for configuration files (.percy.yml, applitools.config.js, etc.)');
+    
     // Check for Percy config files
+    logger.debug('Searching for Percy configuration files...');
     const percyConfigs = await fg(['.percy.yml', '.percy.js', 'percy.config.js'], {
       cwd: this.projectPath,
       ignore: this.ignorePatterns
     });
 
     if (percyConfigs.length > 0) {
+      logger.debug(`Found Percy config files: ${percyConfigs.join(', ')}`);
       // Try to determine framework from config or project structure
       const framework = await this.detectFrameworkFromStructure();
+      logger.debug(`Detected framework from structure: ${framework}`);
       return await this.createDetectionResult('Percy', framework, 'JavaScript/TypeScript');
+    } else {
+      logger.debug('No Percy configuration files found.');
     }
 
     // Check for Applitools config files
+    logger.debug('Searching for Applitools configuration files...');
     const applitoolsConfigs = await fg(['applitools.config.js', 'applitools.config.ts'], {
       cwd: this.projectPath,
       ignore: this.ignorePatterns
     });
 
     if (applitoolsConfigs.length > 0) {
+      logger.debug(`Found Applitools config files: ${applitoolsConfigs.join(', ')}`);
       const framework = await this.detectFrameworkFromStructure();
+      logger.debug(`Detected framework from structure: ${framework}`);
       return await this.createDetectionResult('Applitools', framework, 'JavaScript/TypeScript');
+    } else {
+      logger.debug('No Applitools configuration files found.');
     }
 
     // Check for Sauce Labs config files
+    logger.debug('Searching for Sauce Labs configuration files...');
     const sauceConfigs = await fg(['saucectl.yml', 'sauce.config.js'], {
       cwd: this.projectPath,
       ignore: this.ignorePatterns
     });
 
     if (sauceConfigs.length > 0) {
+      logger.debug(`Found Sauce Labs config files: ${sauceConfigs.join(', ')}`);
       const framework = await this.detectFrameworkFromStructure();
+      logger.debug(`Detected framework from structure: ${framework}`);
       return await this.createDetectionResult('Sauce Labs Visual', framework, 'JavaScript/TypeScript');
+    } else {
+      logger.debug('No Sauce Labs configuration files found.');
     }
 
+    logger.debug('Configuration file analysis completed: No platforms detected');
     return null;
   }
 
