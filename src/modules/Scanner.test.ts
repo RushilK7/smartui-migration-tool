@@ -373,8 +373,8 @@ requests==2.31.0`
         '/percy-config-project': {
           'package.json': JSON.stringify({
             name: 'percy-config-project',
-            devDependencies: {
-              '@percy/cypress': '^3.1.0'
+            dependencies: {
+              'react': '^18.0.0'
             }
           }),
           '.percy.yml': 'version: 2\nsnapshot:\n  widths: [1280, 375]',
@@ -396,8 +396,8 @@ requests==2.31.0`
         '/applitools-config-project': {
           'package.json': JSON.stringify({
             name: 'applitools-config-project',
-            devDependencies: {
-              '@applitools/eyes-cypress': '^3.0.0'
+            dependencies: {
+              'react': '^18.0.0'
             }
           }),
           'applitools.config.js': 'module.exports = { apiKey: "test-key" };',
@@ -419,8 +419,8 @@ requests==2.31.0`
         '/sauce-config-project': {
           'package.json': JSON.stringify({
             name: 'sauce-config-project',
-            devDependencies: {
-              '@saucelabs/cypress-visual-plugin': '^1.0.0'
+            dependencies: {
+              'react': '^18.0.0'
             }
           }),
           'sauce.config.js': 'module.exports = { username: "test-user" };',
@@ -555,6 +555,289 @@ requests==2.31.0`
       expect(result.platform).toBe('Sauce Labs Visual');
       expect(result.framework).toBe('Selenium');
       expect(result.language).toBe('Python');
+    });
+  });
+
+  describe('Anchor and Search Strategy - Non-Standard Directory Structure', () => {
+    it('should detect Percy project with test files in non-standard directory structure', async () => {
+      mock({
+        '/custom-structure-project': {
+          'package.json': JSON.stringify({
+            name: 'custom-structure-project',
+            dependencies: {
+              '@percy/cypress': '^3.1.0'
+            }
+          }),
+          'src': {
+            'qa': {
+              'specs': {
+                'login-visuals.js': `describe('Login Visual Tests', () => {
+                  it('should capture login page', () => {
+                    cy.visit('/login');
+                    percySnapshot('Login Page');
+                  });
+                });`
+              }
+            }
+          },
+          'tests': {
+            'e2e': {
+              'visual-checks.js': `describe('Visual Regression Tests', () => {
+                it('should capture dashboard', () => {
+                  cy.visit('/dashboard');
+                  percySnapshot('Dashboard View');
+                });
+              });`
+            }
+          }
+        }
+      });
+
+      const scanner = new Scanner('/custom-structure-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Percy');
+      expect(result.framework).toBe('Cypress');
+      expect(result.language).toBe('JavaScript/TypeScript');
+      expect(result.testType).toBe('e2e');
+      
+      // Should find source files in non-standard locations
+      expect(result.files.source).toContain('src/qa/specs/login-visuals.js');
+      expect(result.files.source).toContain('tests/e2e/visual-checks.js');
+      expect(result.files.packageManager).toContain('package.json');
+    });
+
+    it('should detect Applitools project with Java files in custom test structure', async () => {
+      mock({
+        '/custom-java-project': {
+          'pom.xml': `<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0">
+  <modelVersion>4.0.0</modelVersion>
+  <groupId>com.example</groupId>
+  <artifactId>custom-java-project</artifactId>
+  <version>1.0.0</version>
+  
+  <dependencies>
+    <dependency>
+      <groupId>com.applitools</groupId>
+      <artifactId>eyes-selenium-java5</artifactId>
+      <version>5.56.0</version>
+    </dependency>
+  </dependencies>
+</project>`,
+          'src': {
+            'test': {
+              'java': {
+                'com': {
+                  'example': {
+                    'visual': {
+                      'LoginVisualTest.java': `package com.example.visual;
+
+import com.applitools.eyes.selenium.Eyes;
+import org.junit.Test;
+
+public class LoginVisualTest {
+    @Test
+    public void testLoginPage() {
+        Eyes eyes = new Eyes();
+        eyes.open(driver, "Login Test", "Login Page");
+        eyes.checkWindow("Login Page");
+        eyes.close();
+    }
+}`,
+                      'DashboardVisualTest.java': `package com.example.visual;
+
+import com.applitools.eyes.selenium.Eyes;
+import org.junit.Test;
+
+public class DashboardVisualTest {
+    @Test
+    public void testDashboard() {
+        Eyes eyes = new Eyes();
+        eyes.open(driver, "Dashboard Test", "Dashboard Page");
+        eyes.checkWindow("Dashboard View");
+        eyes.close();
+    }
+}`
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      });
+
+      const scanner = new Scanner('/custom-java-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Applitools');
+      expect(result.framework).toBe('Selenium');
+      expect(result.language).toBe('Java');
+      expect(result.testType).toBe('e2e');
+      
+      // Should find Java test files in custom structure
+      expect(result.files.source).toContain('src/test/java/com/example/visual/LoginVisualTest.java');
+      expect(result.files.source).toContain('src/test/java/com/example/visual/DashboardVisualTest.java');
+      expect(result.files.packageManager).toContain('pom.xml');
+    });
+
+    it('should detect Sauce Labs Python project with custom test organization', async () => {
+      mock({
+        '/custom-python-project': {
+          'requirements.txt': `pytest==7.4.0
+selenium==4.15.0
+saucelabs_visual==1.0.0
+requests==2.31.0`,
+          'tests': {
+            'visual': {
+              'login_tests.py': `import pytest
+from saucelabs_visual import SauceVisual
+
+def test_login_page():
+    visual = SauceVisual()
+    visual.check_page("Login Page")
+    visual.snapshot("login_screen")`,
+              'dashboard_tests.py': `import pytest
+from saucelabs_visual import SauceVisual
+
+def test_dashboard():
+    visual = SauceVisual()
+    visual.check_page("Dashboard")
+    visual.snapshot("dashboard_view")`
+            }
+          },
+          'qa': {
+            'regression': {
+              'visual_checks.py': `import pytest
+from saucelabs_visual import SauceVisual
+
+def test_homepage():
+    visual = SauceVisual()
+    visual.check_page("Homepage")
+    visual.snapshot("homepage_layout")`
+            }
+          }
+        }
+      });
+
+      const scanner = new Scanner('/custom-python-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Sauce Labs Visual');
+      expect(result.framework).toBe('Selenium');
+      expect(result.language).toBe('Python');
+      expect(result.testType).toBe('e2e');
+      
+      // Should find Python test files in custom structure
+      expect(result.files.source).toContain('tests/visual/login_tests.py');
+      expect(result.files.source).toContain('tests/visual/dashboard_tests.py');
+      expect(result.files.source).toContain('qa/regression/visual_checks.py');
+      expect(result.files.packageManager).toContain('requirements.txt');
+    });
+
+    it('should perform cold search when no anchor is found but magic strings exist in code', async () => {
+      mock({
+        '/cold-search-project': {
+          'package.json': JSON.stringify({
+            name: 'cold-search-project',
+            dependencies: {
+              'react': '^18.0.0',
+              'lodash': '^4.17.21'
+            }
+          }),
+          'src': {
+            'components': {
+              'visual-tests.js': `// Custom visual testing without standard dependencies
+function captureLoginPage() {
+  // Using Percy directly without @percy/cypress
+  percySnapshot('Login Page');
+}
+
+function captureDashboard() {
+  percySnapshot('Dashboard View');
+}`
+            }
+          }
+        }
+      });
+
+      const scanner = new Scanner('/cold-search-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Percy');
+      expect(result.framework).toBe('Selenium'); // Default when no specific framework detected
+      expect(result.language).toBe('JavaScript/TypeScript');
+      expect(result.testType).toBe('e2e');
+      
+      // Should find source files through cold search
+      expect(result.files.source).toContain('src/components/visual-tests.js');
+      expect(result.files.packageManager).toContain('package.json');
+    });
+
+    it('should handle mixed file types in custom directory structure', async () => {
+      mock({
+        '/mixed-structure-project': {
+          'package.json': JSON.stringify({
+            name: 'mixed-structure-project',
+            dependencies: {
+              '@percy/cypress': '^3.1.0'
+            }
+          }),
+          'app': {
+            'tests': {
+              'visual': {
+                'login.spec.ts': `describe('Login Visual Tests', () => {
+                  it('should capture login page', () => {
+                    cy.visit('/login');
+                    percySnapshot('Login Page');
+                  });
+                });`
+              }
+            }
+          },
+          'lib': {
+            'test-utils': {
+              'visual-helpers.js': `// Visual testing utilities
+export function capturePage(name) {
+  percySnapshot(name);
+}
+
+export function captureElement(selector, name) {
+  percyScreenshot(selector, name);
+}`
+            }
+          },
+          'docs': {
+            'test-examples.md': `# Visual Testing Examples
+
+This project uses Percy for visual regression testing.
+
+Example usage:
+\`\`\`javascript
+percySnapshot('Page Name');
+\`\`\``
+          }
+        }
+      });
+
+      const scanner = new Scanner('/mixed-structure-project', false);
+      const result = await scanner.scan();
+      
+      expect(result).toBeDefined();
+      expect(result.platform).toBe('Percy');
+      expect(result.framework).toBe('Cypress');
+      expect(result.language).toBe('JavaScript/TypeScript');
+      expect(result.testType).toBe('e2e');
+      
+      // Should find TypeScript and JavaScript files in custom structure
+      expect(result.files.source).toContain('app/tests/visual/login.spec.ts');
+      expect(result.files.source).toContain('lib/test-utils/visual-helpers.js');
+      expect(result.files.packageManager).toContain('package.json');
     });
   });
 });

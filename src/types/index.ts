@@ -17,6 +17,14 @@ export class MultiplePlatformsDetectedError extends Error {
   }
 }
 
+// Anchor result interface for two-phase detection strategy
+export interface AnchorResult {
+  platform: 'Percy' | 'Applitools' | 'Sauce Labs Visual' | 'unknown';
+  magicStrings: string[]; // e.g., ['percySnapshot', 'percyScreenshot']
+  framework?: 'Cypress' | 'Selenium' | 'Playwright' | 'Storybook' | 'Robot Framework' | 'Appium';
+  language?: 'JavaScript/TypeScript' | 'Java' | 'Python';
+}
+
 // Detection result interface for scanner output
 export interface DetectionResult {
   platform: 'Percy' | 'Applitools' | 'Sauce Labs Visual';
