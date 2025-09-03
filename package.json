@@ -1,7 +1,7 @@
 {
   "name": "smartui-migration-tool",
   "version": "1.0.0",
-  "description": "A sophisticated CLI tool to migrate visual testing suites to LambdaTest SmartUI",
+  "description": "Enterprise-grade CLI tool for migrating visual testing platforms to LambdaTest SmartUI",
   "main": "lib/index.js",
   "bin": {
     "smartui-migrator": "./bin/run"
@@ -22,11 +22,10 @@
     "smartui",
     "migration",
     "visual-testing",
-    "percy",
-    "applitools",
-    "sauce-labs",
     "lambdatest",
-    "cli"
+    "cli",
+    "enterprise",
+    "testing"
   ],
   "author": "LambdaTest",
   "license": "MIT",

@@ -31,10 +31,14 @@ docs/
 PACKAGING.md
 FINAL_SUMMARY.md
 VALIDATION.md
+SECURITY_ANALYSIS.md
+DEPLOYMENT_CHECKLIST.md
 
 # Test files
 test-*.js
 test-*.sh
+*.test.ts
+*.spec.ts
 
 # Config files
 jest.config.js
@@ -46,3 +50,39 @@ tsconfig.json
 pnpm-lock.yaml
 package-lock.json
 yarn.lock
+
+# Intellectual Property Protection
+# Exclude any files that might contain implementation details
+*.md
+!README.md
+
+# Exclude development and build scripts
+scripts/
+build/
+dev/
+
+# Exclude any example or sample files
+examples/
+samples/
+demo/
+
+# Exclude any configuration templates
+templates/
+configs/
+
+# Exclude any documentation beyond README
+*.txt
+*.doc
+*.docx
+
+# Exclude any backup or temporary files
+*.backup
+*.bak
+*.tmp
+*.swp
+*.swo
+
+# Exclude any environment or secret files
+.env*
+secrets/
+credentials/
