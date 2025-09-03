@@ -5,6 +5,7 @@ import yaml from 'js-yaml';
 import { XMLParser } from 'fast-xml-parser';
 import { DetectionResult, AnchorResult, PlatformNotDetectedError, MultiplePlatformsDetectedError, MismatchedSignalsError } from '../types';
 import { logger } from '../utils/Logger';
+import { ProgressManager } from '../utils/ProgressManager';
 
 /**
  * Scanner module for analyzing user's project structure and dependencies
@@ -138,12 +139,17 @@ export class Scanner {
       const absoluteScanPath = path.resolve(this.projectPath);
       logger.debug(`Resolved target directory to absolute path: ${absoluteScanPath}`);
 
+      // Create progress bar for scanning phase
+      const progress = ProgressManager.createScanProgress(4, this.verbose);
+
       // Phase 1: Find Anchor (Fast, high-confidence detection)
+      progress.update(1, { title: 'Finding configuration anchors' });
       logger.debug('Phase 1: Finding anchor through dependency and config analysis');
       const anchorResult = await this.findAnchor(absoluteScanPath);
       logger.debug(`Anchor result: platform=${anchorResult.platform}, magicStrings=${anchorResult.magicStrings.join(', ')}`);
 
       // Phase 2: Deep Content Search
+      progress.update(2, { title: 'Preparing content search' });
       let magicStrings = anchorResult.magicStrings;
       
       // Handle "No Anchor" fallback - perform cold search with all possible magic strings
@@ -163,6 +169,7 @@ export class Scanner {
         ];
       }
 
+      progress.update(3, { title: 'Performing deep content search' });
       logger.debug('Phase 2: Performing deep content search');
       const sourceFiles = await this.deepContentSearch(absoluteScanPath, magicStrings);
       logger.debug(`Deep search found ${sourceFiles.length} source files with magic strings`);
@@ -192,9 +199,11 @@ export class Scanner {
       }
 
       // Construct final DetectionResult
+      progress.update(4, { title: 'Finalizing detection results' });
       const result = await this.createDetectionResult(detectedPlatform, absoluteScanPath, sourceFiles, anchorResult);
       logger.debug(`Final detection result: platform=${result.platform}, framework=${result.framework}, sourceFiles=${result.files.source.length}`);
       
+      progress.complete({ title: 'Scan completed successfully' });
       return result;
 
     } catch (error) {

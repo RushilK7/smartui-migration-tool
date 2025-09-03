@@ -1,211 +1,357 @@
 # SmartUI Migration Tool
 
-A sophisticated command-line interface (CLI) designed to help enterprise QA and developers migrate their existing visual testing suites (from Percy, Applitools, and Sauce Labs) to LambdaTest SmartUI.
+[![npm version](https://badge.fury.io/js/smartui-migration-tool.svg)](https://badge.fury.io/js/smartui-migration-tool)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Node.js Version](https://img.shields.io/node/v/smartui-migration-tool.svg)](https://nodejs.org/)
 
-## Features
+> **Enterprise-grade CLI tool for migrating visual testing platforms to LambdaTest SmartUI**
 
-- **Interactive CLI Experience**: Modern, user-friendly command-line interface with visual feedback
-- **Human-First Design**: Clear prompts and user control with elegant spinners and progress indicators
-- **Automated Mode**: `--yes` flag for CI/CD integration without interactive prompts
-- **Content-Aware Detection**: Deep analysis of code content to find visual testing commands regardless of file structure
-- **Configuration Transformation**: Converts Percy, Applitools, and Sauce Labs configs to SmartUI format
-- **Multi-Framework Support**: Migrate from Percy, Applitools, and Sauce Labs
-- **Multi-Language Support**: JavaScript/TypeScript, Java, and Python projects
-- **Intelligent Code Transformation**: Advanced analysis and transformation of test scripts
-- **Configuration Migration**: Automatic conversion of framework-specific configurations
-- **CI/CD Integration**: Updates package.json scripts and CI/CD configurations
-- **Comprehensive Reporting**: Detailed migration reports with statistics and recommendations
-- **Secure & Local**: Runs 100% locally on your machine for maximum security
+The SmartUI Migration Tool is a powerful command-line interface that automates the migration of visual testing suites from popular platforms like Percy, Applitools, and Sauce Labs Visual to LambdaTest SmartUI. It provides intelligent detection, comprehensive transformation, and detailed progress tracking for seamless migration experiences.
 
-## Intelligent Detection System
+## 🚀 Features
 
-**Content-Aware Detection:** The tool no longer relies on rigid file names or directory structures. It performs a deep analysis of your code's content to find visual testing commands (`percySnapshot`, `eyes.check`, etc.) wherever they are. This ensures that even projects with highly customized naming conventions are detected with high accuracy. The tool shows you the "evidence" it used for detection, giving you full transparency and control.
+### ✨ **Intelligent Detection**
+- **Multi-Platform Support**: Automatically detects Percy, Applitools, and Sauce Labs Visual projects
+- **Framework Recognition**: Supports Cypress, Playwright, Selenium, Jest, Storybook, and more
+- **Content-Aware Analysis**: Deep code analysis beyond file names and dependencies
+- **Evidence-Based Detection**: Provides clear reasoning for platform and framework detection
 
-### How It Works
+### 🔄 **Comprehensive Transformation**
+- **Configuration Migration**: Transforms platform-specific config files to SmartUI format
+- **Code Transformation**: Updates test code with SmartUI API calls and syntax
+- **Execution Scripts**: Migrates CI/CD pipelines and execution commands
+- **Dependency Management**: Updates package.json and dependency files
 
-1. **Anchor Detection**: First scans for platform dependencies in `package.json`, `pom.xml`, or `requirements.txt`
-2. **Deep Content Search**: Analyzes source code files to find visual testing API calls
-3. **Framework Signature Analysis**: Uses weighted pattern matching to identify specific testing frameworks
-4. **Evidence Display**: Shows exactly how the detection was performed with transparent reporting
+### 📊 **Advanced Progress Tracking**
+- **Real-time Progress Bars**: Visual progress indicators with ETA and speed metrics
+- **Detailed Previews**: Comprehensive change preview before transformation
+- **Step-by-Step Tracking**: Progress tracking for scanning, preview, and transformation phases
+- **Professional UI**: Clean, animated progress indicators for enterprise use
 
-### Supported Detection Patterns
+### 🛡️ **Enterprise-Grade Safety**
+- **Backup Creation**: Automatic backup of original files before transformation
+- **Dry Run Mode**: Preview changes without modifying files
+- **Manual Confirmation**: Interactive confirmation for each transformation step
+- **Error Recovery**: Robust error handling with graceful degradation
 
-- **Percy**: `percySnapshot()`, `percyScreenshot()`, `cy.percySnapshot()`
-- **Applitools**: `eyes.check()`, `eyes.open()`, `eyes.close()`
-- **Sauce Labs**: `sauceVisualCheck()`, `sauceVisualSnapshot()`, `screener.snapshot()`
-- **Framework Detection**: Cypress (`cy.visit()`, `cy.get()`), Playwright (`page.goto()`, `page.click()`), Selenium (`new ChromeDriver()`, `By.id()`)
+### 🎯 **User Experience**
+- **Interactive CLI**: User-friendly command-line interface with clear prompts
+- **Verbose Logging**: Detailed logging for debugging and monitoring
+- **File Selection**: Choose specific files to migrate
+- **Comprehensive Reports**: Detailed migration reports and summaries
 
-## Installation
+## 📦 Installation
 
-### Option 1: Download Pre-built Binary (Recommended)
+### Prerequisites
+- Node.js 18.0.0 or higher
+- npm, yarn, or pnpm package manager
 
-Download the appropriate binary for your operating system from the [GitHub Releases](https://github.com/RushilK7/smartui-migration-tool/releases) page:
-
-- **Linux (x64)**: `smartui-migration-tool-linux`
-- **macOS (Intel)**: `smartui-migration-tool-macos`
-- **macOS (Apple Silicon)**: `smartui-migration-tool-macos-arm64`
-- **Windows (x64)**: `smartui-migration-tool-win.exe`
-
-#### Installation Steps:
-
-1. **Download** the appropriate binary for your operating system
-2. **Make executable** (Linux/macOS):
-   ```bash
-   chmod +x smartui-migration-tool-*
-   ```
-3. **Move to PATH** (optional) or run directly:
-   ```bash
-   # Run directly
-   ./smartui-migration-tool-* migrate
-   
-   # Or move to PATH for global access
-   sudo mv smartui-migration-tool-* /usr/local/bin/smartui-migrator
-   smartui-migrator migrate
-   ```
-
-### Option 2: Install via npm (Development)
-
-For development or if you prefer npm installation:
-
+### Install from npm
 ```bash
 npm install -g smartui-migration-tool
 ```
 
-Then run:
+### Install from source
 ```bash
+git clone https://github.com/lambdatest/smartui-migration-tool.git
+cd smartui-migration-tool
+npm install
+npm run build
+npm link
+```
+
+## 🚀 Quick Start
+
+### Basic Migration
+```bash
+# Navigate to your project directory
+cd /path/to/your/project
+
+# Run the migration tool
 smartui-migrator migrate
 ```
 
-## Supported Platforms & Frameworks
-
-The SmartUI Migration Tool automatically detects and supports migration from:
-
-### **Visual Testing Platforms:**
-- **Percy** - Visual testing by BrowserStack
-- **Applitools** - AI-powered visual testing
-- **Sauce Labs Visual** - Visual testing by Sauce Labs
-
-### **Test Frameworks:**
-- **Cypress** - JavaScript/TypeScript end-to-end testing
-- **Playwright** - Cross-browser testing framework
-- **Selenium** - Web browser automation
-- **Storybook** - Component development environment
-- **Robot Framework** - Python-based test automation
-
-### **Programming Languages:**
-- **JavaScript/TypeScript** - Node.js projects
-- **Java** - Maven-based projects
-- **Python** - Requirements.txt-based projects
-
-## Configuration Transformation
-
-The tool automatically transforms configuration files from supported platforms to SmartUI format:
-
-### **Percy Configuration Support:**
-- **`.percy.yml`** - Percy v2 configuration files
-- **`.percyrc`** - Alternative Percy configuration format
-- **Automatic Property Mapping**: Converts Percy-specific properties to SmartUI format
-- **Feature Gap Handling**: Flags unsupported features for manual review
-
-### **Applitools Configuration Support:**
-- **`applitools.config.js`** - JavaScript configuration files
-- **Secure Configuration Parsing**: Safely extracts configuration without executing user code
-- **Property Mapping**: Converts Applitools properties to SmartUI format
-- **Feature Gap Handling**: Notes configuration items that require manual setup
-
-### **Sauce Labs Configuration Support:**
-- **`saucectl.yml`** - YAML configuration files for Sauce Labs Visual
-- **Framework-embedded configs** - JavaScript/TypeScript files with Sauce Labs properties
-- **Dual Format Support**: Handles both YAML and JavaScript configuration sources
-- **Property Mapping**: Converts Sauce Labs properties to SmartUI format
-- **Feature Gap Handling**: Identifies configuration items that need manual attention
-
-## Development Setup
-
-For development purposes, you can build the tool from source:
-
+### Preview Changes (Recommended)
 ```bash
-# Clone the repository
-git clone <repository-url>
+# Preview changes without applying them
+smartui-migrator migrate --preview-only
+```
+
+### Safe Migration with Backups
+```bash
+# Create backups before transformation
+smartui-migrator migrate --backup
+```
+
+### Automated Migration (CI/CD)
+```bash
+# Run in automated mode (no prompts)
+smartui-migrator migrate --yes
+```
+
+## 📋 Command Options
+
+### Global Options
+- `--help`: Show help information
+- `--version`: Show version information
+- `--verbose`: Enable verbose logging
+
+### Migration Options
+- `--project-path <path>`: Specify project path (default: current directory)
+- `--preview-only`: Show preview without applying changes
+- `--dry-run`: Simulate transformation without modifying files
+- `--backup`: Create backups before transformation
+- `--confirm-each`: Ask for confirmation before each file
+- `--yes`: Run in automated mode (skip prompts)
+
+### Examples
+```bash
+# Preview changes for a specific project
+smartui-migrator migrate --project-path ./my-project --preview-only
+
+# Migrate with backups and manual confirmation
+smartui-migrator migrate --backup --confirm-each
+
+# Automated migration for CI/CD
+smartui-migrator migrate --yes --backup
+
+# Verbose migration with detailed logging
+smartui-migrator migrate --verbose --preview-only
+```
+
+## 🔍 Supported Platforms
+
+### Visual Testing Platforms
+- **Percy**: Full support for Percy projects with Cypress, Playwright, and Storybook
+- **Applitools**: Complete migration for Applitools Eyes projects
+- **Sauce Labs Visual**: Migration support for Sauce Labs Visual testing
+
+### Testing Frameworks
+- **Cypress**: E2E testing framework with visual testing integration
+- **Playwright**: Cross-browser testing with visual regression capabilities
+- **Selenium**: WebDriver-based testing with visual validation
+- **Jest**: JavaScript testing framework with snapshot testing
+- **Storybook**: Component development with visual testing
+- **Java**: Selenium-based Java testing projects
+- **Python**: Selenium-based Python testing projects
+
+### CI/CD Platforms
+- **GitHub Actions**: Automated migration of GitHub Actions workflows
+- **Jenkins**: Jenkins pipeline transformation
+- **GitLab CI**: GitLab CI/CD pipeline migration
+- **Azure DevOps**: Azure DevOps pipeline transformation
+
+## 📊 Migration Process
+
+### 1. **Project Analysis**
+- Scans project structure and dependencies
+- Detects visual testing platforms and frameworks
+- Analyzes configuration files and test code
+- Provides evidence-based detection results
+
+### 2. **Change Preview**
+- Generates comprehensive preview of all changes
+- Shows file-by-file transformation details
+- Displays configuration, code, and execution changes
+- Provides warnings and recommendations
+
+### 3. **User Confirmation**
+- Interactive confirmation for transformation
+- Option to confirm each file individually
+- Backup recommendations and safety measures
+- Clear next steps and guidance
+
+### 4. **Transformation Execution**
+- Applies changes with real-time progress tracking
+- Creates backups if requested
+- Transforms configuration files
+- Updates test code and execution scripts
+
+### 5. **Post-Migration Report**
+- Comprehensive summary of changes made
+- Files created, modified, and backed up
+- Next steps and recommendations
+- Integration guidance for SmartUI
+
+## 🛠️ Configuration
+
+### SmartUI Configuration
+The tool creates a `.smartui.json` configuration file:
+
+```json
+{
+  "buildName": "My Project Build",
+  "buildId": "build-123",
+  "project": "my-project",
+  "branch": "main",
+  "browsers": [
+    {
+      "browserName": "chrome",
+      "browserVersion": "latest",
+      "platformName": "Windows 10"
+    }
+  ],
+  "settings": {
+    "ignore": [
+      ".dynamic-content"
+    ],
+    "fullPage": true,
+    "viewportSize": {
+      "width": 1280,
+      "height": 720
+    }
+  }
+}
+```
+
+### Environment Variables
+```bash
+# SmartUI Configuration
+SMARTUI_BUILD_NAME="My Build"
+SMARTUI_PROJECT="my-project"
+SMARTUI_BRANCH="main"
+
+# CI/CD Integration
+CI=true
+BUILD_ID="build-123"
+BRANCH_NAME="main"
+```
+
+## 🔧 Advanced Usage
+
+### Custom File Selection
+```bash
+# Select specific files for migration
+smartui-migrator migrate --preview-only
+# Follow interactive prompts to select files
+```
+
+### Batch Processing
+```bash
+# Process multiple projects
+for project in project1 project2 project3; do
+  smartui-migrator migrate --project-path ./$project --yes --backup
+done
+```
+
+### Integration with CI/CD
+```yaml
+# GitHub Actions example
+- name: Migrate to SmartUI
+  run: |
+    npm install -g smartui-migration-tool
+    smartui-migrator migrate --yes --backup
+  env:
+    SMARTUI_BUILD_NAME: ${{ github.workflow }}
+    SMARTUI_PROJECT: ${{ github.repository }}
+    SMARTUI_BRANCH: ${{ github.ref_name }}
+```
+
+## 📈 Progress Tracking
+
+The tool provides comprehensive progress tracking:
+
+### Scanning Phase
+```
+Finding configuration anchors |████████████████████████████████████████| 100% (1/1) ETA: 0s
+Performing deep content search |████████████████████████████████████████| 100% (2/2) ETA: 0s
+Finalizing detection results |████████████████████████████████████████| 100% (4/4) ETA: 0s
+```
+
+### Preview Generation
+```
+Analyzing configuration changes |████████████████████████████████████████| 100% (1/1) ETA: 0s
+Analyzing code changes |████████████████████████████████████████| 100% (1/1) ETA: 0s
+Analyzing execution changes |████████████████████████████████████████| 100% (3/3) ETA: 0s
+```
+
+### Transformation Phase
+```
+Transforming files |████████████████████████████████████████| 100% (2/2) ETA: 0s Speed: 2.5/s
+Processing files |████████████████████████████████████████| 100% (2/2) ETA: 0s Speed: 1.2/s
+```
+
+## 🚨 Troubleshooting
+
+### Common Issues
+
+#### Platform Not Detected
+```bash
+# Enable verbose logging to see detection details
+smartui-migrator migrate --verbose --preview-only
+```
+
+#### Multiple Platforms Detected
+```bash
+# The tool supports migrating from one platform at a time
+# Remove conflicting dependencies and try again
+```
+
+#### Permission Errors
+```bash
+# Ensure you have write permissions to the project directory
+chmod -R 755 /path/to/your/project
+```
+
+### Debug Mode
+```bash
+# Run with maximum verbosity
+smartui-migrator migrate --verbose --preview-only
+```
+
+### Getting Help
+```bash
+# Show help information
+smartui-migrator --help
+smartui-migrator migrate --help
+```
+
+## 🤝 Contributing
+
+We welcome contributions! Please see our [Contributing Guidelines](CONTRIBUTING.md) for details.
+
+### Development Setup
+```bash
+git clone https://github.com/lambdatest/smartui-migration-tool.git
 cd smartui-migration-tool
-
-# Install dependencies and build
-npm install && npm run build
+npm install
+npm run build
+npm test
 ```
 
-## Usage
-
-### Basic Migration
-
+### Running Tests
 ```bash
-# Run the migration tool
-npm start migrate
+# Run all tests
+npm test
 
-# Or use the built binary
-./bin/run migrate
+# Run tests with coverage
+npm run test:coverage
+
+# Run tests in watch mode
+npm run test:watch
 ```
 
-### Advanced Options
+## 📄 License
 
-```bash
-# Specify project path
-npm start migrate --project-path ./my-project
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
 
-# Dry run (no actual changes)
-npm start migrate --dry-run
+## 🆘 Support
 
-# Skip backups
-npm start migrate --no-backup
+- **Documentation**: [GitHub Wiki](https://github.com/lambdatest/smartui-migration-tool/wiki)
+- **Issues**: [GitHub Issues](https://github.com/lambdatest/smartui-migration-tool/issues)
+- **Discussions**: [GitHub Discussions](https://github.com/lambdatest/smartui-migration-tool/discussions)
+- **Email**: support@lambdatest.com
 
-# Verbose output
-npm start migrate --verbose
+## 🙏 Acknowledgments
 
-# Automated mode (skip interactive prompts for CI/CD)
-npm start migrate --yes
+- Built with [OCLIF](https://oclif.io/) for enterprise-grade CLI experience
+- Powered by [LambdaTest SmartUI](https://www.lambdatest.com/smart-ui) for visual testing
+- Thanks to the open-source community for the amazing tools and libraries
 
-# Migrate specific framework
-npm start migrate percy
-```
+---
 
-## Development
+**Made with ❤️ by the LambdaTest Team**
 
-### Prerequisites
-- Node.js >= 18.0.0
-- npm, yarn, or pnpm
-
-### Available Scripts
-```bash
-npm run build    # Build the project
-npm run test     # Run tests
-npm run lint     # Lint code
-npm run format   # Format code
-```
-
-### Code Quality
-This project uses modern development tools for type safety, code quality, and formatting.
-
-## Quality Assurance
-The SmartUI Migration Tool follows strict quality principles to ensure enterprise-grade reliability:
-
-- **Advanced Code Analysis**: Uses sophisticated parsing techniques for accurate code transformations
-- **Enterprise-Grade Safety**: All transformations are safe for production codebases
-- **Reliable Processing**: Handles various code formatting styles consistently
-- **Future-Proof Design**: Built to handle evolving testing frameworks and patterns
-
-## Testing and Validation
-The SmartUI Migration Tool has been thoroughly tested and validated:
-
-- **✅ Comprehensive Test Suite**: Unit and integration tests with Jest
-- **✅ Cross-Platform Validation**: All executables tested on Windows, macOS (Intel/ARM), and Linux
-- **✅ Multi-Language Support**: Tested with JavaScript/TypeScript, Java, and Python projects
-- **✅ Multi-Framework Support**: Validated with Cypress, Playwright, Selenium, Storybook, and Appium
-- **✅ Error Handling**: Robust error handling with user-friendly messages
-- **✅ Performance Testing**: Optimized for large projects and fast execution
-
-For detailed validation results, see the validation documentation in the miscellaneous folder.
-
-## License
-MIT License - see LICENSE file for details.
-
-## Support
-For support and questions, please contact the LambdaTest team or create an issue in the repository.
+[![LambdaTest](https://img.shields.io/badge/LambdaTest-SmartUI-blue.svg)](https://www.lambdatest.com/smart-ui)
+[![GitHub](https://img.shields.io/badge/GitHub-Repository-black.svg)](https://github.com/lambdatest/smartui-migration-tool)
+[![npm](https://img.shields.io/badge/npm-Package-red.svg)](https://www.npmjs.com/package/smartui-migration-tool)

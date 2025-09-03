@@ -291,3 +291,30 @@ export interface FinalReportData {
   migrationEndTime: Date;
   totalFilesProcessed: number;
 }
+
+// Change preview interfaces for transformation preview
+export interface ChangePreview {
+  filePath: string;
+  changeType: 'CREATE' | 'MODIFY' | 'DELETE';
+  originalContent?: string;
+  newContent: string;
+  changes: ChangeDetail[];
+  warnings: string[];
+}
+
+export interface ChangeDetail {
+  lineNumber: number;
+  originalLine: string;
+  newLine: string;
+  changeType: 'ADD' | 'MODIFY' | 'DELETE';
+  description: string;
+}
+
+export interface TransformationPreview {
+  configChanges: ChangePreview[];
+  codeChanges: ChangePreview[];
+  executionChanges: ChangePreview[];
+  totalFiles: number;
+  totalSnapshots: number;
+  warnings: string[];
+}

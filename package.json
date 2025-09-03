@@ -44,6 +44,7 @@
     "@babel/types": "^7.28.2",
     "@oclif/core": "^3.0.0",
     "chalk": "^5.3.0",
+    "cli-progress": "^3.12.0",
     "cli-table3": "^0.6.5",
     "fast-glob": "^3.3.3",
     "fast-xml-parser": "^5.2.5",
@@ -56,6 +57,7 @@
   "devDependencies": {
     "@types/babel__generator": "^7.27.0",
     "@types/babel__traverse": "^7.28.0",
+    "@types/cli-progress": "^3.11.6",
     "@types/figlet": "^1.7.0",
     "@types/inquirer": "^9.0.9",
     "@types/jest": "^30.0.0",

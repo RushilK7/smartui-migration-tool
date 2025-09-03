@@ -273,7 +273,17 @@ export class Scanner {
       framework,
       language,
       testType,
-      files
+      files,
+      evidence: {
+        platform: {
+          source: 'legacy-scanner',
+          match: 'legacy-detection'
+        },
+        framework: {
+          files: files.source,
+          signatures: []
+        }
+      }
     };
   }
 
