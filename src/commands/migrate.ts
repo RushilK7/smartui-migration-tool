@@ -114,7 +114,7 @@ export default class Migrate extends Command {
       await InteractiveCLI.showSpinner('Initializing migration process...');
 
       // Initialize modules (projectPath already resolved above)
-      const scanner = new Scanner(projectPath);
+      const scanner = new Scanner(projectPath, verbose);
       const configTransformer = new ConfigTransformer(projectPath);
       const codeTransformer = new CodeTransformer(projectPath);
       const javaCodeTransformer = new JavaCodeTransformer(projectPath);
@@ -125,14 +125,35 @@ export default class Migrate extends Command {
 
       InteractiveCLI.showSuccess('Migration modules initialized');
 
-      // Step 1: Scan the project
+      // Step 1: Scan the project with advanced detection
       InteractiveCLI.showInfo('Step 1: Scanning project for existing visual testing frameworks...');
-      await InteractiveCLI.showSpinner('Analyzing project structure...');
+      await InteractiveCLI.showSpinner('Intelligently analyzing project...');
       
-      logger.verbose('Starting project scan');
+      logger.verbose('Starting advanced project scan');
       const detectionResult: DetectionResult = await scanner.scan();
-      logger.verbose(`Scan completed - Platform: ${detectionResult.platform}, Framework: ${detectionResult.framework}, Language: ${detectionResult.language}`);
+      logger.verbose(`Advanced scan completed - Platform: ${detectionResult.platform}, Framework: ${detectionResult.framework}, Language: ${detectionResult.language}`);
       InteractiveCLI.showSuccess('Project scan completed');
+
+      // Display evidence-based analysis report
+      this.displayEvidenceBasedAnalysis(detectionResult);
+
+      // User confirmation after evidence display
+      if (!isAutomated) {
+        const inquirer = await import('inquirer');
+        const question = {
+          type: 'confirm' as const,
+          name: 'proceed',
+          message: '? Does this look correct?',
+          default: true,
+        };
+
+        const answers = await inquirer.default.prompt([question]);
+
+        if (!answers['proceed']) {
+          InteractiveCLI.showInfo('Migration cancelled by user.');
+          return;
+        }
+      }
 
       // Step 2: Generate pre-migration analysis report
       InteractiveCLI.showInfo('Step 2: Generating pre-migration analysis report...');
@@ -639,5 +660,47 @@ export default class Migrate extends Command {
       InteractiveCLI.showError(`Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       this.exit(1);
     }
+  }
+
+  /**
+   * Display evidence-based analysis report from the advanced scanner
+   */
+  private displayEvidenceBasedAnalysis(detectionResult: DetectionResult): void {
+    const { platform, framework, language, files, evidence } = detectionResult;
+    
+    // Main detection summary with evidence
+    console.log(chalk.green('✅ Analysis Complete!'));
+    console.log('');
+    
+    // Platform detection evidence
+    const platformEvidence = evidence.platform;
+    console.log(chalk.white(`- Detected Platform: ${chalk.bold(platform)} ${chalk.gray(`(Evidence: Found '${platformEvidence.match}' in ${platformEvidence.source})`)}`));
+    
+    // Framework detection evidence
+    const frameworkEvidence = evidence.framework;
+    const frameworkFileCount = frameworkEvidence.files.length;
+    console.log(chalk.white(`- Detected Framework: ${chalk.bold(framework)} ${chalk.gray(`(Evidence: Matched signatures in ${frameworkFileCount} files)`)}`));
+    
+    console.log('');
+    
+    // Show source files that were found
+    if (files.source.length > 0) {
+      console.log(chalk.white.bold(`Our deep content search found visual testing patterns in the following ${files.source.length} files:`));
+      files.source.forEach((file: string) => {
+        console.log(chalk.dim(`  - ${file}`));
+      });
+      console.log('');
+    }
+    
+    // Show additional file counts
+    if (files.config.length > 0) {
+      console.log(chalk.blue(`📁 Configuration files: ${files.config.length} found`));
+    }
+    
+    if (files.ci.length > 0) {
+      console.log(chalk.blue(`🔄 CI/CD files: ${files.ci.length} found`));
+    }
+    
+    console.log(''); // Add spacing
   }
 }
