@@ -105,3 +105,32 @@ temp/
 *.njsproj
 *.sln
 *.sw?
+
+# Confidential and sensitive files
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+credentials/
+config/secrets.json
+.env.production
+.env.staging
+
+# Personal information
+*personal*
+*private*
+*confidential*
+
+# Backup files
+*.backup
+*.bak
+*.tmp
+
+# Lock files (keep pnpm-lock.yaml for consistency)
+package-lock.json
+yarn.lock
+
+# OCLIF manifest (generated file)
+oclif.manifest.json
