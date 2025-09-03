@@ -3,7 +3,7 @@ import path from 'path';
 import fg from 'fast-glob';
 import yaml from 'js-yaml';
 import { XMLParser } from 'fast-xml-parser';
-import { DetectionResult, AnchorResult, PlatformNotDetectedError, MultiplePlatformsDetectedError } from '../types';
+import { DetectionResult, AnchorResult, PlatformNotDetectedError, MultiplePlatformsDetectedError, MismatchedSignalsError } from '../types';
 import { logger } from '../utils/Logger';
 
 /**
@@ -172,6 +172,15 @@ export class Scanner {
       if (anchorResult.platform === 'unknown' && sourceFiles.length > 0) {
         detectedPlatform = await this.determinePlatformFromContent(absoluteScanPath, sourceFiles);
         logger.debug(`Determined platform from content: ${detectedPlatform}`);
+        
+        // Context-aware error handling for mismatched signals
+        if (detectedPlatform !== 'unknown') {
+          // Found visual testing API calls but no corresponding dependency
+          const errorMessage = this.getMismatchedSignalsErrorMessage(detectedPlatform);
+          logger.debug(`Mismatched signals detected: ${detectedPlatform} API calls found but no dependency`);
+          throw new MismatchedSignalsError(errorMessage);
+        }
+        
         // Update anchor result with content-scan evidence
         anchorResult.evidence = { source: 'content-scan', match: 'magic-strings' };
       }
@@ -643,6 +652,22 @@ export class Scanner {
       framework: 'Selenium',
       evidence: { files: [], signatures: [] }
     };
+  }
+
+  /**
+   * Get context-aware error message for mismatched signals
+   */
+  private getMismatchedSignalsErrorMessage(platform: 'Percy' | 'Applitools' | 'Sauce Labs Visual'): string {
+    switch (platform) {
+      case 'Percy':
+        return "Found Percy API calls in your code, but no Percy dependency was found in your package.json. Please ensure your project's dependencies are correctly installed before running the migration.";
+      case 'Applitools':
+        return "Found Applitools API calls in your code, but no Applitools dependency was found in your package.json or pom.xml. Please ensure your project's dependencies are correctly installed before running the migration.";
+      case 'Sauce Labs Visual':
+        return "Found Sauce Labs Visual API calls in your code, but no Sauce Labs dependency was found in your package.json or requirements.txt. Please ensure your project's dependencies are correctly installed before running the migration.";
+      default:
+        return "Found visual testing API calls in your code, but no corresponding dependency was found. Please ensure your project's dependencies are correctly installed before running the migration.";
+    }
   }
 
   /**

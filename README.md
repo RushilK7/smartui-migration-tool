@@ -7,7 +7,7 @@ A sophisticated command-line interface (CLI) designed to help enterprise QA and 
 - **Interactive CLI Experience**: Modern, user-friendly command-line interface with visual feedback
 - **Human-First Design**: Clear prompts and user control with elegant spinners and progress indicators
 - **Automated Mode**: `--yes` flag for CI/CD integration without interactive prompts
-- **Intelligent Project Scanner**: Automatically detects visual testing platforms, frameworks, and languages
+- **Content-Aware Detection**: Deep analysis of code content to find visual testing commands regardless of file structure
 - **Configuration Transformation**: Converts Percy, Applitools, and Sauce Labs configs to SmartUI format
 - **Multi-Framework Support**: Migrate from Percy, Applitools, and Sauce Labs
 - **Multi-Language Support**: JavaScript/TypeScript, Java, and Python projects
@@ -16,6 +16,24 @@ A sophisticated command-line interface (CLI) designed to help enterprise QA and 
 - **CI/CD Integration**: Updates package.json scripts and CI/CD configurations
 - **Comprehensive Reporting**: Detailed migration reports with statistics and recommendations
 - **Secure & Local**: Runs 100% locally on your machine for maximum security
+
+## Intelligent Detection System
+
+**Content-Aware Detection:** The tool no longer relies on rigid file names or directory structures. It performs a deep analysis of your code's content to find visual testing commands (`percySnapshot`, `eyes.check`, etc.) wherever they are. This ensures that even projects with highly customized naming conventions are detected with high accuracy. The tool shows you the "evidence" it used for detection, giving you full transparency and control.
+
+### How It Works
+
+1. **Anchor Detection**: First scans for platform dependencies in `package.json`, `pom.xml`, or `requirements.txt`
+2. **Deep Content Search**: Analyzes source code files to find visual testing API calls
+3. **Framework Signature Analysis**: Uses weighted pattern matching to identify specific testing frameworks
+4. **Evidence Display**: Shows exactly how the detection was performed with transparent reporting
+
+### Supported Detection Patterns
+
+- **Percy**: `percySnapshot()`, `percyScreenshot()`, `cy.percySnapshot()`
+- **Applitools**: `eyes.check()`, `eyes.open()`, `eyes.close()`
+- **Sauce Labs**: `sauceVisualCheck()`, `sauceVisualSnapshot()`, `screener.snapshot()`
+- **Framework Detection**: Cypress (`cy.visit()`, `cy.get()`), Playwright (`page.goto()`, `page.click()`), Selenium (`new ChromeDriver()`, `By.id()`)
 
 ## Installation
 

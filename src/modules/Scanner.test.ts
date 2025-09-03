@@ -1,6 +1,6 @@
 import mock from 'mock-fs';
 import { Scanner } from './Scanner';
-import { PlatformNotDetectedError, MultiplePlatformsDetectedError, DetectionResult } from '../types';
+import { PlatformNotDetectedError, MultiplePlatformsDetectedError, MismatchedSignalsError, DetectionResult } from '../types';
 
 describe('Scanner', () => {
   afterEach(() => {
@@ -739,7 +739,7 @@ def test_homepage():
       expect(result.files.packageManager).toContain('requirements.txt');
     });
 
-    it('should perform cold search when no anchor is found but magic strings exist in code', async () => {
+    it('should throw MismatchedSignalsError when Percy API calls found but no dependency (cold search scenario)', async () => {
       mock({
         '/cold-search-project': {
           'package.json': JSON.stringify({
@@ -766,17 +766,8 @@ function captureDashboard() {
       });
 
       const scanner = new Scanner('/cold-search-project', false);
-      const result = await scanner.scan();
       
-      expect(result).toBeDefined();
-      expect(result.platform).toBe('Percy');
-      expect(result.framework).toBe('Selenium'); // Default when no specific framework detected
-      expect(result.language).toBe('JavaScript/TypeScript');
-      expect(result.testType).toBe('e2e');
-      
-      // Should find source files through cold search
-      expect(result.files.source).toContain('src/components/visual-tests.js');
-      expect(result.files.packageManager).toContain('package.json');
+      await expect(scanner.scan()).rejects.toThrow('Found Percy API calls in your code, but no Percy dependency was found in your package.json. Please ensure your project\'s dependencies are correctly installed before running the migration.');
     });
 
     it('should handle mixed file types in custom directory structure', async () => {
@@ -1072,6 +1063,116 @@ testSomething();`
       expect(result.framework).toBe('Selenium'); // Should default to Selenium
       expect(result.language).toBe('JavaScript/TypeScript');
       expect(result.testType).toBe('e2e');
+    });
+  });
+
+  describe('Context-Aware Error Handling', () => {
+    it('should throw MismatchedSignalsError when Percy API calls found but no dependency', async () => {
+      mock({
+        '/mismatched-percy-project': {
+          'package.json': JSON.stringify({
+            name: 'mismatched-percy-project',
+            dependencies: {
+              'cypress': '^12.0.0'
+              // No Percy dependency
+            }
+          }),
+          'src': {
+            'tests': {
+              'test.js': `describe('Login Tests', () => {
+                it('should login successfully', () => {
+                  cy.visit('http://localhost:3000/login');
+                  cy.get('[data-testid="email"]').type('user@example.com');
+                  cy.get('[data-testid="password"]').type('password123');
+                  cy.get('[data-testid="login-button"]').click();
+                  cy.url().should('include', '/dashboard');
+                  
+                  // Take visual snapshot
+                  cy.percySnapshot('Login Flow - Dashboard');
+                });
+              });`
+            }
+          }
+        }
+      });
+
+      const scanner = new Scanner('/mismatched-percy-project', false);
+      
+      await expect(scanner.scan()).rejects.toThrow('Found Percy API calls in your code, but no Percy dependency was found in your package.json. Please ensure your project\'s dependencies are correctly installed before running the migration.');
+    });
+
+    it('should throw MismatchedSignalsError when Applitools API calls found but no dependency', async () => {
+      mock({
+        '/mismatched-applitools-project': {
+          'package.json': JSON.stringify({
+            name: 'mismatched-applitools-project',
+            dependencies: {
+              'selenium-webdriver': '^4.0.0'
+              // No Applitools dependency
+            }
+          }),
+          'src': {
+            'tests': {
+              'test.js': `// Selenium test with Applitools visual testing
+const { Builder, By } = require('selenium-webdriver');
+const { Eyes } = require('@applitools/eyes-selenium');
+
+async function testLogin() {
+  const driver = await new Builder().forBrowser('chrome').build();
+  const eyes = new Eyes();
+  
+  try {
+    await eyes.open(driver, 'Login Test', 'Login Page');
+    await driver.get('http://localhost:3000/login');
+    
+    // Take visual snapshot
+    await eyes.check('Login Page');
+    await eyes.close();
+  } finally {
+    await driver.quit();
+  }
+}`
+            }
+          }
+        }
+      });
+
+      const scanner = new Scanner('/mismatched-applitools-project', false);
+      
+      await expect(scanner.scan()).rejects.toThrow('Found Applitools API calls in your code, but no Applitools dependency was found in your package.json or pom.xml. Please ensure your project\'s dependencies are correctly installed before running the migration.');
+    });
+
+    it('should throw MismatchedSignalsError when Sauce Labs API calls found but no dependency', async () => {
+      mock({
+        '/mismatched-sauce-project': {
+          'package.json': JSON.stringify({
+            name: 'mismatched-sauce-project',
+            dependencies: {
+              'cypress': '^12.0.0'
+              // No Sauce Labs dependency
+            }
+          }),
+          'src': {
+            'tests': {
+              'test.js': `describe('Login Tests', () => {
+                it('should login successfully', () => {
+                  cy.visit('http://localhost:3000/login');
+                  cy.get('[data-testid="email"]').type('user@example.com');
+                  cy.get('[data-testid="password"]').type('password123');
+                  cy.get('[data-testid="login-button"]').click();
+                  
+                  // Take visual snapshot
+                  cy.sauceVisualCheck('Login Flow - Dashboard');
+                });
+              });`
+            }
+          }
+        }
+      });
+
+      const scanner = new Scanner('/mismatched-sauce-project', false);
+      
+      await expect(scanner.scan()).rejects.toThrow('Found Sauce Labs Visual API calls in your code, but no Sauce Labs dependency was found in your package.json or requirements.txt. Please ensure your project\'s dependencies are correctly installed before running the migration.');
     });
   });
 });

@@ -17,6 +17,13 @@ export class MultiplePlatformsDetectedError extends Error {
   }
 }
 
+export class MismatchedSignalsError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'MismatchedSignalsError';
+  }
+}
+
 // Anchor result interface for two-phase detection strategy
 export interface AnchorResult {
   platform: 'Percy' | 'Applitools' | 'Sauce Labs Visual' | 'unknown';
