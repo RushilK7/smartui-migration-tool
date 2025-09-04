@@ -1,7 +1,7 @@
 import { Command, Flags, Args } from '@oclif/core';
 import chalk from 'chalk';
 import { promises as fs } from 'fs';
-import { InteractiveCLI } from '../cli';
+import { CLIUtils } from '../utils/CLIUtils';
 import { Scanner } from '../modules/Scanner';
 import { ConfigTransformer } from '../modules/ConfigTransformer';
 import { CodeTransformer } from '../modules/CodeTransformer';
@@ -141,26 +141,24 @@ export default class Migrate extends Command {
       // Initialize interactive CLI with automation flag and project path
       const isAutomated = finalFlags['yes'] as boolean;
       const projectPath = path.resolve(finalFlags['project-path'] as string);
-      const interactiveCLI = new InteractiveCLI(isAutomated, projectPath);
-
       // Show initial info
-      InteractiveCLI.showInfo('Starting SmartUI Migration Tool...');
-      InteractiveCLI.showInfo(`Project path: ${finalFlags['project-path']}`);
+      CLIUtils.showInfo('Starting SmartUI Migration Tool...');
+      CLIUtils.showInfo(`Project path: ${finalFlags['project-path']}`);
       
       if (finalFlags['dry-run']) {
-        InteractiveCLI.showWarning('Running in dry-run mode - no changes will be made');
+        CLIUtils.showWarning('Running in dry-run mode - no changes will be made');
       }
 
       if (finalFlags['backup']) {
-        InteractiveCLI.showInfo('Backups will be created before making changes');
+        CLIUtils.showInfo('Backups will be created before making changes');
       }
 
       if (isAutomated) {
-        InteractiveCLI.showInfo('🤖 Running in automated mode (CI/CD)');
+        CLIUtils.showInfo('🤖 Running in automated mode (CI/CD)');
       }
 
       // Show loading animation
-      await InteractiveCLI.showSpinner('Initializing migration process...');
+      await CLIUtils.showSpinner('Initializing migration process...');
 
       // Initialize modules (projectPath already resolved above)
       const scanner = new Scanner(projectPath, verbose);
@@ -172,11 +170,11 @@ export default class Migrate extends Command {
       const storybookTransformer = new StorybookTransformer(projectPath);
       const reporter = new Reporter(projectPath);
 
-      InteractiveCLI.showSuccess('Migration modules initialized');
+      CLIUtils.showSuccess('Migration modules initialized');
 
       // Step 1: Scan the project with advanced detection
-      InteractiveCLI.showInfo('Step 1: Scanning project for existing visual testing frameworks...');
-      await InteractiveCLI.showSpinner('Intelligently analyzing project...');
+      CLIUtils.showInfo('Step 1: Scanning project for existing visual testing frameworks...');
+      await CLIUtils.showSpinner('Intelligently analyzing project...');
       
       logger.verbose('Starting advanced project scan');
       let detectionResult: DetectionResult;
@@ -185,12 +183,12 @@ export default class Migrate extends Command {
         // Try normal scan first
         detectionResult = await scanner.scan();
         logger.verbose(`Advanced scan completed - Platform: ${detectionResult.platform}, Framework: ${detectionResult.framework}, Language: ${detectionResult.language}`);
-      InteractiveCLI.showSuccess('Project scan completed');
+      CLIUtils.showSuccess('Project scan completed');
       } catch (error: any) {
         // If multiple platforms detected, use multi-detection
         if (error.name === 'MultiplePlatformsDetectedError') {
           logger.verbose('Multiple platforms detected, switching to multi-detection mode');
-          InteractiveCLI.showInfo('Multiple visual testing setups detected. Let me show you what was found...');
+          CLIUtils.showInfo('Multiple visual testing setups detected. Let me show you what was found...');
           
           const multiDetectionResult: MultiDetectionResult = await scanner.scanMultiDetection();
           
@@ -204,14 +202,14 @@ export default class Migrate extends Command {
           const confirmed = await MultiDetectionSelector.confirmSelection(userSelection);
           
           if (!confirmed) {
-            InteractiveCLI.showWarning('Migration cancelled by user');
+            CLIUtils.showWarning('Migration cancelled by user');
             this.exit(0);
             return;
           }
           
           // Convert selection to DetectionResult format
           detectionResult = this.convertSelectionToDetectionResult(userSelection, multiDetectionResult);
-          InteractiveCLI.showSuccess('Selection confirmed, proceeding with migration');
+          CLIUtils.showSuccess('Selection confirmed, proceeding with migration');
         } else {
           throw error;
         }
@@ -257,42 +255,42 @@ export default class Migrate extends Command {
         const answers = await inquirer.default.prompt([question]);
 
         if (!answers['proceed']) {
-          InteractiveCLI.showInfo('Migration cancelled by user.');
+          CLIUtils.showInfo('Migration cancelled by user.');
           return;
         }
       }
 
       // Step 2: Generate pre-migration analysis report
-      InteractiveCLI.showInfo('Step 2: Generating pre-migration analysis report...');
-      await InteractiveCLI.showSpinner('Simulating migration and generating preview...');
+      CLIUtils.showInfo('Step 2: Generating pre-migration analysis report...');
+      await CLIUtils.showSpinner('Simulating migration and generating preview...');
       
       const analysisReporter = new AnalysisReporter(projectPath);
       const analysisResult = await analysisReporter.analyze(detectionResult);
       
       // Stop spinner and render the analysis report
-      InteractiveCLI.showSuccess('Analysis completed');
+      CLIUtils.showSuccess('Analysis completed');
       ReportRenderer.renderAnalysisReport(analysisResult);
 
       // Step 2.5: Advanced file selection
-      InteractiveCLI.showInfo('Step 2.5: Advanced file selection...');
+      CLIUtils.showInfo('Step 2.5: Advanced file selection...');
       
       let finalAnalysisResult = analysisResult;
       let selectedFiles: string[] = [];
       
       if (autoMode) {
         // Auto mode: migrate all files automatically
-        InteractiveCLI.showInfo('Auto mode: Migrating all files automatically');
+        CLIUtils.showInfo('Auto mode: Migrating all files automatically');
         selectedFiles = analysisResult.changes
           .filter(change => change.type !== 'INFO')
           .map(change => change.filePath);
         finalAnalysisResult = analysisResult;
-        InteractiveCLI.showInfo(`Proceeding with migration for all ${selectedFiles.length} files...`);
+        CLIUtils.showInfo(`Proceeding with migration for all ${selectedFiles.length} files...`);
       } else {
         // Interactive mode: prompt user for migration scope
         const migrationScope = await FileSelector.promptMigrationScope(analysisResult);
       
       if (migrationScope === 'cancel') {
-        InteractiveCLI.showInfo('Migration cancelled by user.');
+        CLIUtils.showInfo('Migration cancelled by user.');
         return;
       } else if (migrationScope === 'select') {
         // Prompt user to select specific files
@@ -309,13 +307,13 @@ export default class Migrate extends Command {
           .filter(change => change.type !== 'INFO')
           .map(change => change.filePath);
         
-        InteractiveCLI.showInfo(`Proceeding with migration for all ${selectedFiles.length} files...`);
+        CLIUtils.showInfo(`Proceeding with migration for all ${selectedFiles.length} files...`);
         }
       }
 
       // Step 3: Generate transformation preview
-      InteractiveCLI.showInfo('Step 3: Generating transformation preview...');
-      await InteractiveCLI.showSpinner('Analyzing changes that will be made...');
+      CLIUtils.showInfo('Step 3: Generating transformation preview...');
+      await CLIUtils.showSpinner('Analyzing changes that will be made...');
       
       // Initialize change previewer with selected files
       const changePreviewer = new ChangePreviewer(projectPath, verbose, selectedFiles);
@@ -323,7 +321,7 @@ export default class Migrate extends Command {
       // Generate comprehensive preview
       const transformationPreview: TransformationPreview = await changePreviewer.generatePreview(detectionResult);
       
-      InteractiveCLI.showSuccess('Transformation preview generated');
+      CLIUtils.showSuccess('Transformation preview generated');
       
       // Display the preview
       changePreviewer.displayPreview(transformationPreview);
@@ -336,7 +334,7 @@ export default class Migrate extends Command {
       }
 
       // Step 4: Execute transformation with user confirmation
-      InteractiveCLI.showInfo('Step 4: Executing transformation...');
+      CLIUtils.showInfo('Step 4: Executing transformation...');
       
       // Initialize transformation manager with selected files
       const transformationManager = new TransformationManager(projectPath, verbose, selectedFiles);
@@ -357,16 +355,16 @@ export default class Migrate extends Command {
       );
       
       if (!transformationResult.success) {
-        InteractiveCLI.showError('Transformation failed. Please check the errors above.');
+        CLIUtils.showError('Transformation failed. Please check the errors above.');
         this.exit(1);
         return;
       }
       
-      InteractiveCLI.showSuccess('Transformation completed successfully');
+      CLIUtils.showSuccess('Transformation completed successfully');
 
       // Step 5: Generate report
-      InteractiveCLI.showInfo('Step 5: Generating migration report...');
-      await InteractiveCLI.showSpinner('Creating comprehensive migration report...');
+      CLIUtils.showInfo('Step 5: Generating migration report...');
+      await CLIUtils.showSpinner('Creating comprehensive migration report...');
       
       // Create final report data using transformation results
       const finalReportData: FinalReportData = {
@@ -387,11 +385,11 @@ export default class Migrate extends Command {
       const reportPath = path.join(projectPath, 'MIGRATION_REPORT.md');
       await fs.writeFile(reportPath, reportContent, 'utf-8');
       
-      InteractiveCLI.showSuccess('Migration report generated');
+      CLIUtils.showSuccess('Migration report generated');
 
       // Final success message
       console.log('\n' + '='.repeat(60));
-      InteractiveCLI.showSuccess('Migration completed successfully!');
+      CLIUtils.showSuccess('Migration completed successfully!');
       console.log('='.repeat(60) + '\n');
 
       console.log(chalk.green('✅ Migration complete! A detailed summary has been saved to MIGRATION_REPORT.md\n'));
@@ -412,7 +410,7 @@ export default class Migrate extends Command {
         logger.verbose(`Files backed up: ${transformationResult.filesBackedUp.length}`);
       }
       
-      InteractiveCLI.showInfo('Next steps:');
+      CLIUtils.showInfo('Next steps:');
       console.log(chalk.white('  1. Review the MIGRATION_REPORT.md file for detailed information'));
       console.log(chalk.white('  2. Install SmartUI dependencies: npm install @lambdatest/smartui-cli'));
       console.log(chalk.white('  3. Configure your SmartUI credentials'));
@@ -427,7 +425,7 @@ export default class Migrate extends Command {
       console.log(chalk.white('   Once confident, run it on your real project directory.\n'));
 
     } catch (error) {
-      InteractiveCLI.showError(`Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      CLIUtils.showError(`Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       this.exit(1);
     }
   }
