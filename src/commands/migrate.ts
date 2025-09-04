@@ -13,9 +13,10 @@ import { AnalysisReporter } from '../modules/AnalysisReporter';
 import { ReportRenderer } from '../modules/ReportRenderer';
 import { FileSelector } from '../modules/FileSelector';
 import { Reporter } from '../modules/Reporter';
-import { DetectionResult, FinalReportData, TransformationPreview } from '../types';
+import { DetectionResult, FinalReportData, TransformationPreview, MultiDetectionResult } from '../types';
 import { ChangePreviewer } from '../modules/ChangePreviewer';
 import { TransformationManager } from '../modules/TransformationManager';
+import { MultiDetectionSelector } from '../modules/MultiDetectionSelector';
 import { logger } from '../utils/Logger';
 import path from 'path';
 
@@ -28,10 +29,12 @@ export default class Migrate extends Command {
 
   static override examples = [
     '<%= config.bin %> <%= command.id %>',
+    '<%= config.bin %> <%= command.id %> --interactive',
     '<%= config.bin %> <%= command.id %> --project-path ./my-project',
     '<%= config.bin %> <%= command.id %> --dry-run',
     '<%= config.bin %> <%= command.id %> --preview-only',
     '<%= config.bin %> <%= command.id %> --confirm-each --backup',
+    '<%= config.bin %> <%= command.id %> --interactive --project-path ./my-project',
   ];
 
   static override flags = {
@@ -60,6 +63,11 @@ export default class Migrate extends Command {
       description: 'Skip interactive prompts and proceed automatically (for CI/CD)',
       default: false,
     }),
+    'interactive': Flags.boolean({
+      char: 'i',
+      description: 'Interactive mode - select flags through menu system',
+      default: false,
+    }),
     'preview-only': Flags.boolean({
       description: 'Show preview of changes without applying them',
       default: false,
@@ -81,40 +89,41 @@ export default class Migrate extends Command {
     const { args, flags } = await this.parse();
 
     try {
+      // Check if interactive mode is requested
+      const interactiveMode = flags['interactive'] as boolean;
+      let finalFlags = flags;
+      
+      if (interactiveMode) {
+        finalFlags = await this.selectFlagsInteractively(flags);
+      }
+
       // Initialize logger with verbose flag
-      const verbose = flags['verbose'] as boolean;
+      const verbose = finalFlags['verbose'] as boolean;
       logger.setVerbose(verbose);
       
       if (verbose) {
         logger.verbose('SmartUI Migration Tool started in verbose mode');
-        logger.verbose(`Project path: ${flags['project-path']}`);
-        logger.verbose(`Dry run: ${flags['dry-run']}`);
-        logger.verbose(`Auto confirm: ${flags['yes']}`);
+        logger.verbose(`Project path: ${finalFlags['project-path']}`);
+        logger.verbose(`Dry run: ${finalFlags['dry-run']}`);
+        logger.verbose(`Auto confirm: ${finalFlags['yes']}`);
+        logger.verbose(`Backup: ${finalFlags['backup']}`);
+        logger.verbose(`Interactive mode: ${interactiveMode}`);
       }
 
       // Initialize interactive CLI with automation flag and project path
-      const isAutomated = flags['yes'] as boolean;
-      const projectPath = path.resolve(flags['project-path'] as string);
+      const isAutomated = finalFlags['yes'] as boolean;
+      const projectPath = path.resolve(finalFlags['project-path'] as string);
       const interactiveCLI = new InteractiveCLI(isAutomated, projectPath);
-
-      // Run the interactive workflow
-      const shouldProceed = await interactiveCLI.runWorkflow();
-
-      if (!shouldProceed) {
-        // User chose to exit or there was an error
-        this.exit(0);
-        return;
-      }
 
       // Show initial info
       InteractiveCLI.showInfo('Starting SmartUI Migration Tool...');
-      InteractiveCLI.showInfo(`Project path: ${flags['project-path']}`);
+      InteractiveCLI.showInfo(`Project path: ${finalFlags['project-path']}`);
       
-      if (flags['dry-run']) {
+      if (finalFlags['dry-run']) {
         InteractiveCLI.showWarning('Running in dry-run mode - no changes will be made');
       }
 
-      if (flags['backup']) {
+      if (finalFlags['backup']) {
         InteractiveCLI.showInfo('Backups will be created before making changes');
       }
 
@@ -142,9 +151,67 @@ export default class Migrate extends Command {
       await InteractiveCLI.showSpinner('Intelligently analyzing project...');
       
       logger.verbose('Starting advanced project scan');
-      const detectionResult: DetectionResult = await scanner.scan();
-      logger.verbose(`Advanced scan completed - Platform: ${detectionResult.platform}, Framework: ${detectionResult.framework}, Language: ${detectionResult.language}`);
-      InteractiveCLI.showSuccess('Project scan completed');
+      let detectionResult: DetectionResult;
+      
+      try {
+        // Try normal scan first
+        detectionResult = await scanner.scan();
+        logger.verbose(`Advanced scan completed - Platform: ${detectionResult.platform}, Framework: ${detectionResult.framework}, Language: ${detectionResult.language}`);
+        InteractiveCLI.showSuccess('Project scan completed');
+      } catch (error: any) {
+        // If multiple platforms detected, use multi-detection
+        if (error.name === 'MultiplePlatformsDetectedError') {
+          logger.verbose('Multiple platforms detected, switching to multi-detection mode');
+          InteractiveCLI.showInfo('Multiple visual testing setups detected. Let me show you what was found...');
+          
+          const multiDetectionResult: MultiDetectionResult = await scanner.scanMultiDetection();
+          
+          // Display detection matrix
+          MultiDetectionSelector.displayDetectionMatrix(multiDetectionResult);
+          
+          // Get user selection
+          const userSelection = await MultiDetectionSelector.getUserSelection(multiDetectionResult);
+          
+          // Confirm selection
+          const confirmed = await MultiDetectionSelector.confirmSelection(userSelection);
+          
+          if (!confirmed) {
+            InteractiveCLI.showWarning('Migration cancelled by user');
+            this.exit(0);
+            return;
+          }
+          
+          // Convert selection to DetectionResult format
+          detectionResult = this.convertSelectionToDetectionResult(userSelection, multiDetectionResult);
+          InteractiveCLI.showSuccess('Selection confirmed, proceeding with migration');
+        } else {
+          throw error;
+        }
+      }
+
+      // Skip interactive workflow if we already have detection result from multi-detection
+      // The runWorkflow is mainly for scanning, which we've already done
+      let shouldProceed = true;
+      
+      if (!isAutomated) {
+        // Show a simple confirmation prompt instead of full workflow
+        const inquirer = await import('inquirer');
+        const answer = await inquirer.default.prompt([
+          {
+            type: 'confirm',
+            name: 'proceed',
+            message: 'Do you want to proceed with the migration?',
+            default: true
+          }
+        ]);
+        shouldProceed = answer.proceed;
+      }
+
+      if (!shouldProceed) {
+        // User chose to exit
+        this.exit(0);
+        return;
+      }
 
       // Display evidence-based analysis report
       this.displayEvidenceBasedAnalysis(detectionResult);
@@ -224,7 +291,7 @@ export default class Migrate extends Command {
       changePreviewer.displayPreview(transformationPreview);
       
       // Handle preview-only mode
-      if (flags['preview-only']) {
+      if (finalFlags['preview-only']) {
         console.log(chalk.blue('\n🔍 Preview mode - no changes will be made'));
         console.log(chalk.white('Use --no-preview-only to apply the transformations'));
         return;
@@ -238,9 +305,9 @@ export default class Migrate extends Command {
       
       // Set transformation options
       const transformationOptions = {
-        createBackup: flags['backup'] as boolean,
-        confirmEachFile: flags['confirm-each'] as boolean,
-        dryRun: flags['dry-run'] as boolean
+        createBackup: finalFlags['backup'] as boolean,
+        confirmEachFile: finalFlags['confirm-each'] as boolean,
+        dryRun: finalFlags['dry-run'] as boolean
       };
       
       // Execute the transformation
@@ -366,5 +433,221 @@ export default class Migrate extends Command {
     }
     
     console.log(''); // Add spacing
+  }
+
+  /**
+   * Interactive flag selection method
+   * Allows users to select flags through a menu system
+   */
+  private async selectFlagsInteractively(initialFlags: any): Promise<any> {
+    const inquirer = await import('inquirer');
+    
+    console.log(chalk.bold.blue('\n🎛️  INTERACTIVE FLAG SELECTION'));
+    console.log(chalk.gray('='.repeat(50)));
+    console.log(chalk.white('Select your preferred options for the migration:'));
+    console.log(chalk.gray('='.repeat(50)));
+
+    const questions = [
+      {
+        type: 'confirm',
+        name: 'backup',
+        message: '🛡️  Create backups before making changes?',
+        default: initialFlags['backup'] as boolean,
+      },
+      {
+        type: 'confirm',
+        name: 'dryRun',
+        message: '🔍 Perform a dry run (no actual changes)?',
+        default: initialFlags['dry-run'] as boolean,
+      },
+      {
+        type: 'confirm',
+        name: 'verbose',
+        message: '📝 Enable verbose output for debugging?',
+        default: initialFlags['verbose'] as boolean,
+      },
+      {
+        type: 'confirm',
+        name: 'yes',
+        message: '🤖 Skip interactive prompts (automated mode for CI/CD)?',
+        default: initialFlags['yes'] as boolean,
+      },
+      {
+        type: 'confirm',
+        name: 'previewOnly',
+        message: '👀 Show preview only (no transformation)?',
+        default: initialFlags['preview-only'] as boolean,
+      },
+      {
+        type: 'confirm',
+        name: 'confirmEach',
+        message: '✅ Ask for confirmation before transforming each file?',
+        default: initialFlags['confirm-each'] as boolean,
+      }
+    ];
+
+    const answers = await (inquirer.default as any).prompt(questions);
+
+    // Create final flags object
+    const finalFlags = {
+      ...initialFlags,
+      'backup': answers.backup,
+      'dry-run': answers.dryRun,
+      'verbose': answers.verbose,
+      'yes': answers.yes,
+      'preview-only': answers.previewOnly,
+      'confirm-each': answers.confirmEach,
+    };
+
+    // Show selected options
+    console.log(chalk.bold.green('\n✅ Selected Options:'));
+    console.log(chalk.gray('='.repeat(30)));
+    console.log(chalk.white(`🛡️  Backup: ${answers.backup ? '✅ Yes' : '❌ No'}`));
+    console.log(chalk.white(`🔍 Dry Run: ${answers.dryRun ? '✅ Yes' : '❌ No'}`));
+    console.log(chalk.white(`📝 Verbose: ${answers.verbose ? '✅ Yes' : '❌ No'}`));
+    console.log(chalk.white(`🤖 Automated: ${answers.yes ? '✅ Yes' : '❌ No'}`));
+    console.log(chalk.white(`👀 Preview Only: ${answers.previewOnly ? '✅ Yes' : '❌ No'}`));
+    console.log(chalk.white(`✅ Confirm Each: ${answers.confirmEach ? '✅ Yes' : '❌ No'}`));
+    console.log(chalk.gray('='.repeat(30)));
+
+    // Validate flag combinations
+    this.validateFlagCombinations(finalFlags);
+
+    return finalFlags;
+  }
+
+  /**
+   * Validate flag combinations and show warnings
+   */
+  private validateFlagCombinations(flags: any): void {
+    const warnings: string[] = [];
+
+    // Check for conflicting flags
+    if (flags['dry-run'] && flags['preview-only']) {
+      warnings.push('Both --dry-run and --preview-only are enabled. Preview-only will take precedence.');
+    }
+
+    if (flags['yes'] && flags['confirm-each']) {
+      warnings.push('Automated mode (--yes) is enabled but --confirm-each is also set. Confirm-each will be ignored.');
+    }
+
+    if (flags['dry-run'] && !flags['backup']) {
+      warnings.push('Dry run is enabled but backup is disabled. Consider enabling backup for safety.');
+    }
+
+    if (flags['preview-only'] && flags['backup']) {
+      warnings.push('Preview-only mode is enabled but backup is also set. Backup will not be needed.');
+    }
+
+    // Show warnings if any
+    if (warnings.length > 0) {
+      console.log(chalk.bold.yellow('\n⚠️  Flag Combination Warnings:'));
+      warnings.forEach(warning => {
+        console.log(chalk.yellow(`  • ${warning}`));
+      });
+      console.log('');
+    }
+
+    // Show recommendations
+    const recommendations: string[] = [];
+
+    if (!flags['backup'] && !flags['dry-run'] && !flags['preview-only']) {
+      recommendations.push('Consider enabling backup for safety before making changes.');
+    }
+
+    if (!flags['verbose'] && !flags['yes']) {
+      recommendations.push('Enable verbose mode for detailed output during migration.');
+    }
+
+    if (flags['yes'] && !flags['backup']) {
+      recommendations.push('Automated mode is enabled. Consider enabling backup for safety.');
+    }
+
+    if (recommendations.length > 0) {
+      console.log(chalk.bold.cyan('\n💡 Recommendations:'));
+      recommendations.forEach(rec => {
+        console.log(chalk.cyan(`  • ${rec}`));
+      });
+      console.log('');
+    }
+  }
+
+  /**
+   * Convert user selection to DetectionResult format
+   */
+  private convertSelectionToDetectionResult(
+    selection: { platform?: any; framework?: any; language?: any },
+    multiResult: MultiDetectionResult
+  ): DetectionResult {
+    // Default values
+    let platform: 'Percy' | 'Applitools' | 'Sauce Labs Visual' = 'Percy';
+    let framework: 'Cypress' | 'Selenium' | 'Playwright' | 'Storybook' | 'Robot Framework' | 'Appium' = 'Cypress';
+    let language: 'JavaScript/TypeScript' | 'Java' | 'Python' = 'JavaScript/TypeScript';
+    let testType: 'e2e' | 'storybook' | 'appium' = 'e2e';
+
+    // Use selected platform if available
+    if (selection.platform) {
+      platform = selection.platform.name;
+      if (selection.platform.frameworks.length > 0) {
+        framework = selection.platform.frameworks[0] as any;
+      }
+      if (selection.platform.languages.length > 0) {
+        language = selection.platform.languages[0] as any;
+      }
+    }
+
+    // Use selected framework if available
+    if (selection.framework) {
+      framework = selection.framework.name;
+      if (selection.framework.platforms.length > 0) {
+        platform = selection.framework.platforms[0] as any;
+      }
+      if (selection.framework.languages.length > 0) {
+        language = selection.framework.languages[0] as any;
+      }
+    }
+
+    // Use selected language if available
+    if (selection.language) {
+      language = selection.language.name;
+      if (selection.language.platforms.length > 0) {
+        platform = selection.language.platforms[0] as any;
+      }
+      if (selection.language.frameworks.length > 0) {
+        framework = selection.language.frameworks[0] as any;
+      }
+    }
+
+    // Determine test type based on framework
+    if (framework === 'Storybook') {
+      testType = 'storybook';
+    } else if (framework === 'Appium') {
+      testType = 'appium';
+    } else {
+      testType = 'e2e';
+    }
+
+    return {
+      platform,
+      framework,
+      language,
+      testType,
+      files: {
+        config: [],
+        source: [],
+        ci: [],
+        packageManager: []
+      },
+      evidence: {
+        platform: {
+          source: 'user selection',
+          match: 'selected from multiple detections'
+        },
+        framework: {
+          files: [],
+          signatures: []
+        }
+      }
+    };
   }
 }

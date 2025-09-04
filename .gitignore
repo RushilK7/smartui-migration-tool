@@ -134,3 +134,6 @@ yarn.lock
 
 # OCLIF manifest (generated file)
 oclif.manifest.json
+
+# Miscellaneous files (redundant and development files)
+miscellaneous/

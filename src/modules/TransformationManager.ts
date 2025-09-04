@@ -96,6 +96,9 @@ export class TransformationManager {
     // Show transformation summary
     this.showTransformationSummary(result);
 
+    // Show current state of the code
+    await this.showCurrentCodeState();
+
     return result;
   }
 
@@ -121,17 +124,104 @@ export class TransformationManager {
   private async getUserConfirmation(preview: TransformationPreview, options: TransformationOptions): Promise<boolean> {
     const inquirer = await import('inquirer');
     
-    // Main confirmation
-    const mainQuestion = {
-      type: 'confirm' as const,
-      name: 'proceed',
-      message: `Do you want to proceed with transforming ${preview.totalFiles} files?`,
-      default: false,
-    };
+    console.log(chalk.bold.blue('\n🤔 TRANSFORMATION CONFIRMATION'));
+    console.log(chalk.gray('='.repeat(50)));
 
-    const mainAnswer = await inquirer.default.prompt([mainQuestion]);
+    // Show detailed summary
+    console.log(chalk.white(`\nThe migration will:`));
+    console.log(chalk.white(`  • Modify ${preview.totalFiles} files`));
+    console.log(chalk.white(`  • Migrate ${preview.totalSnapshots} snapshots`));
+    console.log(chalk.white(`  • Create ${preview.configChanges.filter(c => c.changeType === 'CREATE').length} new files`));
+    console.log(chalk.white(`  • Modify ${preview.configChanges.filter(c => c.changeType === 'MODIFY').length + preview.codeChanges.length + preview.executionChanges.length} existing files`));
+
+    if (preview.warnings.length > 0) {
+      console.log(chalk.yellow(`  • ${preview.warnings.length} warnings to review`));
+    }
+
+    // Show detailed file breakdown
+    console.log(chalk.bold('\n📋 File Breakdown:'));
+    if (preview.configChanges.length > 0) {
+      console.log(chalk.blue(`  Configuration files (${preview.configChanges.length}):`));
+      preview.configChanges.forEach(change => {
+        const icon = change.changeType === 'CREATE' ? '➕' : '✏️';
+        console.log(chalk.blue(`    ${icon} ${change.filePath} (${change.changes.length} changes)`));
+      });
+    }
     
-    if (!mainAnswer['proceed']) {
+    if (preview.codeChanges.length > 0) {
+      console.log(chalk.green(`  Code files (${preview.codeChanges.length}):`));
+      preview.codeChanges.forEach(change => {
+        console.log(chalk.green(`    ✏️  ${change.filePath} (${change.changes.length} changes)`));
+      });
+    }
+    
+    if (preview.executionChanges.length > 0) {
+      console.log(chalk.magenta(`  Execution files (${preview.executionChanges.length}):`));
+      preview.executionChanges.forEach(change => {
+        console.log(chalk.magenta(`    ✏️  ${change.filePath} (${change.changes.length} changes)`));
+      });
+    }
+
+    // Show backup recommendation
+    if (!options.createBackup) {
+      console.log(chalk.bold.yellow('\n⚠️  BACKUP RECOMMENDATION'));
+      console.log(chalk.yellow('We strongly recommend creating backups before transformation.'));
+      console.log(chalk.yellow('Use --backup flag to automatically create backups.'));
+      console.log(chalk.yellow('This ensures you can restore your original files if needed.'));
+    }
+
+    // Show POC recommendation
+    console.log(chalk.bold.cyan('\n💡 POC RECOMMENDATION'));
+    console.log(chalk.cyan('For Proof of Concept (POC) purposes:'));
+    console.log(chalk.cyan('  1. Test the migration on a copy of your project first'));
+    console.log(chalk.cyan('  2. Verify the results in the copied directory'));
+    console.log(chalk.cyan('  3. Once confident, run it on your real project directory'));
+    console.log(chalk.cyan('  4. Always keep backups of your original files'));
+
+    // Get confirmation with options
+    const answer = await inquirer.default.prompt([
+      {
+        type: 'list',
+        name: 'action',
+        message: 'What would you like to do?',
+        choices: [
+          {
+            name: '✅ Proceed with transformation (recommended with --backup)',
+            value: 'proceed'
+          },
+          {
+            name: '📋 Show detailed changes for each file',
+            value: 'detailed'
+          },
+          {
+            name: '❌ Cancel transformation',
+            value: 'cancel'
+          }
+        ],
+        default: 'proceed'
+      }
+    ]);
+
+    if (answer['action'] === 'detailed') {
+      await this.showDetailedChanges(preview);
+      return await this.getUserConfirmation(preview, options);
+    }
+
+    if (answer['action'] === 'cancel') {
+      return false;
+    }
+
+    // Final confirmation
+    const finalAnswer = await inquirer.default.prompt([
+      {
+        type: 'confirm',
+        name: 'proceed',
+        message: 'Are you absolutely sure you want to proceed with the transformation?',
+        default: false
+      }
+    ]);
+
+    if (!finalAnswer['proceed']) {
       return false;
     }
 
@@ -157,6 +247,62 @@ export class TransformationManager {
     }
 
     return true;
+  }
+
+  /**
+   * Show detailed changes for each file
+   */
+  private async showDetailedChanges(preview: TransformationPreview): Promise<void> {
+    console.log(chalk.bold.blue('\n📋 DETAILED CHANGES'));
+    console.log(chalk.gray('='.repeat(50)));
+
+    const allChanges = [
+      ...preview.configChanges.map(c => ({ ...c, type: 'Configuration' })),
+      ...preview.codeChanges.map(c => ({ ...c, type: 'Code' })),
+      ...preview.executionChanges.map(c => ({ ...c, type: 'Execution' }))
+    ];
+
+    for (const change of allChanges) {
+      console.log(chalk.bold(`\n📄 ${change.filePath} (${change.type})`));
+      console.log(chalk.gray(`Change Type: ${change.changeType}`));
+      console.log(chalk.gray(`Total Changes: ${change.changes.length}`));
+      
+      if (change.changes.length > 0) {
+        console.log(chalk.gray('\nChanges:'));
+        change.changes.forEach((changeDetail, index) => {
+          const lineNum = changeDetail.lineNumber;
+          const changeTypeIcon = changeDetail.changeType === 'ADD' ? '+' : 
+                                changeDetail.changeType === 'DELETE' ? '-' : '~';
+          const changeColor = changeDetail.changeType === 'ADD' ? chalk.green :
+                             changeDetail.changeType === 'DELETE' ? chalk.red : chalk.yellow;
+          
+          console.log(chalk.gray(`  ${index + 1}. Line ${lineNum}: ${changeTypeIcon} ${changeDetail.description}`));
+          
+          // Show before/after for modifications
+          if (changeDetail.changeType === 'MODIFY') {
+            if (changeDetail.originalLine) {
+              console.log(chalk.red(`     - ${changeDetail.originalLine}`));
+            }
+            if (changeDetail.newLine) {
+              console.log(chalk.green(`     + ${changeDetail.newLine}`));
+            }
+          } else if (changeDetail.changeType === 'ADD' && changeDetail.newLine) {
+            console.log(chalk.green(`     + ${changeDetail.newLine}`));
+          } else if (changeDetail.changeType === 'DELETE' && changeDetail.originalLine) {
+            console.log(chalk.red(`     - ${changeDetail.originalLine}`));
+          }
+        });
+      }
+      
+      if (change.warnings.length > 0) {
+        console.log(chalk.yellow('\nWarnings:'));
+        change.warnings.forEach(warning => {
+          console.log(chalk.yellow(`  • ${warning}`));
+        });
+      }
+    }
+
+    console.log(chalk.gray('\n' + '='.repeat(50)));
   }
 
   /**
@@ -240,7 +386,7 @@ export class TransformationManager {
         console.log(chalk.green(`  ✅ ${change.changeType === 'CREATE' ? 'Created' : 'Modified'}: ${change.filePath}`));
         
       } catch (error) {
-        const errorMsg = `Failed to transform ${change.filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        const errorMsg = `Failed to transform ${change?.filePath || 'unknown file'}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         result.errors.push(errorMsg);
         console.log(chalk.red(`  ❌ ${errorMsg}`));
       }
@@ -288,7 +434,7 @@ export class TransformationManager {
         console.log(chalk.green(`  ✅ Modified: ${change.filePath} (${change.changes.length} changes)`));
         
       } catch (error) {
-        const errorMsg = `Failed to transform ${change.filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        const errorMsg = `Failed to transform ${change?.filePath || 'unknown file'}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         result.errors.push(errorMsg);
         console.log(chalk.red(`  ❌ ${errorMsg}`));
       }
@@ -336,7 +482,7 @@ export class TransformationManager {
         console.log(chalk.green(`  ✅ Modified: ${change.filePath} (${change.changes.length} changes)`));
         
       } catch (error) {
-        const errorMsg = `Failed to transform ${change.filePath}: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        const errorMsg = `Failed to transform ${change?.filePath || 'unknown file'}: ${error instanceof Error ? error.message : 'Unknown error'}`;
         result.errors.push(errorMsg);
         console.log(chalk.red(`  ❌ ${errorMsg}`));
       }
@@ -358,53 +504,213 @@ export class TransformationManager {
       console.log(chalk.red('❌ Transformation completed with errors'));
     }
 
-    console.log(chalk.white(`\n📁 Files created: ${chalk.bold(result.filesCreated.length)}`));
-    result.filesCreated.forEach(file => {
-      console.log(chalk.green(`  ➕ ${file}`));
-    });
+    // Detailed file statistics
+    console.log(chalk.bold('\n📁 File Statistics:'));
+    console.log(chalk.white(`  • Files created: ${chalk.bold(result.filesCreated.length)}`));
+    console.log(chalk.white(`  • Files modified: ${chalk.bold(result.filesModified.length)}`));
+    console.log(chalk.white(`  • Files backed up: ${chalk.bold(result.filesBackedUp.length)}`));
+    console.log(chalk.white(`  • Total files processed: ${chalk.bold(result.filesCreated.length + result.filesModified.length)}`));
 
-    console.log(chalk.white(`\n✏️  Files modified: ${chalk.bold(result.filesModified.length)}`));
-    result.filesModified.forEach(file => {
-      console.log(chalk.blue(`  ✏️  ${file}`));
-    });
+    // Show created files
+    if (result.filesCreated.length > 0) {
+      console.log(chalk.bold.green('\n📄 Files Created:'));
+      result.filesCreated.forEach(file => {
+        console.log(chalk.green(`  ➕ ${file}`));
+      });
+    }
 
+    // Show modified files
+    if (result.filesModified.length > 0) {
+      console.log(chalk.bold.blue('\n✏️  Files Modified:'));
+      result.filesModified.forEach(file => {
+        console.log(chalk.blue(`  ✏️  ${file}`));
+      });
+    }
+
+    // Show backed up files
     if (result.filesBackedUp.length > 0) {
-      console.log(chalk.white(`\n📦 Files backed up: ${chalk.bold(result.filesBackedUp.length)}`));
+      console.log(chalk.bold.yellow('\n📦 Files Backed Up:'));
       result.filesBackedUp.forEach(file => {
         console.log(chalk.yellow(`  📦 ${file}`));
       });
     }
 
+    // Show errors
     if (result.errors.length > 0) {
-      console.log(chalk.red(`\n❌ Errors: ${chalk.bold(result.errors.length)}`));
+      console.log(chalk.bold.red('\n❌ Errors:'));
       result.errors.forEach(error => {
-        console.log(chalk.red(`  ❌ ${error}`));
+        console.log(chalk.red(`  • ${error}`));
       });
     }
 
+    // Show warnings
     if (result.warnings.length > 0) {
-      console.log(chalk.yellow(`\n⚠️  Warnings: ${chalk.bold(result.warnings.length)}`));
+      console.log(chalk.bold.yellow('\n⚠️  Warnings:'));
       result.warnings.forEach(warning => {
-        console.log(chalk.yellow(`  ⚠️  ${warning}`));
+        console.log(chalk.yellow(`  • ${warning}`));
       });
+    }
+
+    // Current state information
+    console.log(chalk.bold.cyan('\n📋 Current State of Your Code:'));
+    console.log(chalk.cyan('  • All visual testing code has been migrated to SmartUI'));
+    console.log(chalk.cyan('  • Configuration files have been updated'));
+    console.log(chalk.cyan('  • Dependencies have been modified'));
+    console.log(chalk.cyan('  • CI/CD scripts have been updated'));
+
+    // Next steps
+    console.log(chalk.bold.green('\n🚀 Next Steps:'));
+    console.log(chalk.green('  1. Install SmartUI dependencies: npm install @lambdatest/smartui-cli'));
+    console.log(chalk.green('  2. Configure your SmartUI credentials'));
+    console.log(chalk.green('  3. Update your test environment variables'));
+    console.log(chalk.green('  4. Run your migrated tests with SmartUI'));
+    console.log(chalk.green('  5. Check the SmartUI Dashboard for test results'));
+
+    // Backup information
+    if (result.filesBackedUp.length > 0) {
+      console.log(chalk.bold.yellow('\n🛡️  Backup Information:'));
+      console.log(chalk.yellow(`  • ${result.filesBackedUp.length} files backed up to .smartui-backup/`));
+      console.log(chalk.yellow('  • Original files are safely preserved'));
+      console.log(chalk.yellow('  • You can restore files if needed'));
+      console.log(chalk.yellow('  • Keep backups until you\'re confident everything works'));
+    }
+
+    // POC guidance
+    console.log(chalk.bold.cyan('\n💡 POC Guidance:'));
+    console.log(chalk.cyan('  • Test the migrated code in a development environment first'));
+    console.log(chalk.cyan('  • Verify all tests run successfully with SmartUI'));
+    console.log(chalk.cyan('  • Check that visual comparisons work as expected'));
+    console.log(chalk.cyan('  • Once confident, deploy to your production environment'));
+
+    // Support information
+    console.log(chalk.bold.blue('\n🆘 Support:'));
+    console.log(chalk.blue('  • Documentation: https://github.com/lambdatest/smartui-migration-tool'));
+    console.log(chalk.blue('  • Issues: https://github.com/lambdatest/smartui-migration-tool/issues'));
+    console.log(chalk.blue('  • SmartUI Docs: https://www.lambdatest.com/smart-ui'));
+
+    console.log(chalk.gray('\n' + '='.repeat(50)));
+  }
+
+  /**
+   * Show current state of the code after transformation
+   */
+  private async showCurrentCodeState(): Promise<void> {
+    console.log(chalk.bold.cyan('\n📋 CURRENT STATE OF YOUR CODE'));
+    console.log(chalk.gray('='.repeat(50)));
+
+    try {
+      // Check for SmartUI configuration
+      const smartuiConfigPath = path.join(this.projectPath, '.smartui.json');
+      const configExists = await fs.access(smartuiConfigPath).then(() => true).catch(() => false);
+      
+      if (configExists) {
+        console.log(chalk.green('✅ SmartUI configuration file (.smartui.json) is present'));
+        try {
+          const configContent = await fs.readFile(smartuiConfigPath, 'utf-8');
+          const config = JSON.parse(configContent);
+          console.log(chalk.gray(`   • Project: ${config.project || 'Not specified'}`));
+          console.log(chalk.gray(`   • Build Name: ${config.buildName || 'Not specified'}`));
+          console.log(chalk.gray(`   • Branch: ${config.branch || 'Not specified'}`));
+        } catch (error) {
+          console.log(chalk.yellow('⚠️  SmartUI configuration file exists but could not be parsed'));
+        }
+      } else {
+        console.log(chalk.yellow('⚠️  SmartUI configuration file (.smartui.json) not found'));
+      }
+
+      // Check package.json for SmartUI dependencies
+      const packageJsonPath = path.join(this.projectPath, 'package.json');
+      const packageExists = await fs.access(packageJsonPath).then(() => true).catch(() => false);
+      
+      if (packageExists) {
+        try {
+          const packageContent = await fs.readFile(packageJsonPath, 'utf-8');
+          const packageJson = JSON.parse(packageContent);
+          const hasSmartUIDep = packageJson.dependencies && 
+            (packageJson.dependencies['@lambdatest/smartui-cli'] || 
+             packageJson.dependencies['@lambdatest/smartui']);
+          
+          if (hasSmartUIDep) {
+            console.log(chalk.green('✅ SmartUI dependencies are present in package.json'));
+          } else {
+            console.log(chalk.yellow('⚠️  SmartUI dependencies not found in package.json'));
+            console.log(chalk.cyan('   Run: npm install @lambdatest/smartui-cli'));
+          }
+        } catch (error) {
+          console.log(chalk.yellow('⚠️  Could not read package.json'));
+        }
+      }
+
+      // Check for test files that might have been migrated
+      const testFiles = await this.findTestFiles();
+      if (testFiles.length > 0) {
+        console.log(chalk.green(`✅ Found ${testFiles.length} test files that may have been migrated`));
+        testFiles.slice(0, 5).forEach(file => {
+          console.log(chalk.gray(`   • ${file}`));
+        });
+        if (testFiles.length > 5) {
+          console.log(chalk.gray(`   • ... and ${testFiles.length - 5} more files`));
+        }
+      }
+
+      // Check for backup directory
+      const backupDir = path.join(this.projectPath, '.smartui-backup');
+      const backupExists = await fs.access(backupDir).then(() => true).catch(() => false);
+      
+      if (backupExists) {
+        console.log(chalk.green('✅ Backup directory (.smartui-backup) exists'));
+        try {
+          const backupFiles = await fs.readdir(backupDir);
+          console.log(chalk.gray(`   • ${backupFiles.length} backup files available`));
+        } catch (error) {
+          console.log(chalk.yellow('⚠️  Could not read backup directory'));
+        }
+      }
+
+    } catch (error) {
+      console.log(chalk.red('❌ Error checking current state:'), error);
     }
 
     console.log(chalk.gray('\n' + '='.repeat(50)));
-    
-    // Show next steps
-    if (result.success) {
-      console.log(chalk.green.bold('\n🎉 Next Steps:'));
-      console.log(chalk.white('  1. Review the transformed files'));
-      console.log(chalk.white('  2. Install SmartUI dependencies: npm install @lambdatest/smartui-cli'));
-      console.log(chalk.white('  3. Configure your SmartUI credentials'));
-      console.log(chalk.white('  4. Run your tests with SmartUI'));
-      console.log(chalk.white('  5. Check the SmartUI Dashboard for results'));
-      
-      if (result.filesBackedUp.length > 0) {
-        console.log(chalk.yellow('\n🛡️  Backup Information:'));
-        console.log(chalk.white('  • Original files are backed up in .smartui-backup/'));
-        console.log(chalk.white('  • You can restore files if needed'));
+  }
+
+  /**
+   * Find test files in the project
+   */
+  private async findTestFiles(): Promise<string[]> {
+    const testFiles: string[] = [];
+    const testPatterns = [
+      '**/*.test.js',
+      '**/*.test.ts',
+      '**/*.spec.js',
+      '**/*.spec.ts',
+      '**/cypress/**/*.js',
+      '**/cypress/**/*.ts',
+      '**/tests/**/*.js',
+      '**/tests/**/*.ts',
+      '**/test/**/*.js',
+      '**/test/**/*.ts'
+    ];
+
+    try {
+      const { glob } = await import('fast-glob');
+      for (const pattern of testPatterns) {
+        const files = await glob(pattern, { cwd: this.projectPath });
+        testFiles.push(...files);
+      }
+    } catch (error) {
+      // Fallback to basic file system search
+      try {
+        const files = await fs.readdir(this.projectPath, { recursive: true });
+        testFiles.push(...files.filter(file => 
+          typeof file === 'string' && 
+          (file.includes('.test.') || file.includes('.spec.') || file.includes('cypress'))
+        ));
+      } catch (error) {
+        // Ignore errors in fallback
       }
     }
+
+    return [...new Set(testFiles)]; // Remove duplicates
   }
 }

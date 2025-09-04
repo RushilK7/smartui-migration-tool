@@ -64,9 +64,8 @@ export class InteractiveCLI {
       }
       
       if (error instanceof MultiplePlatformsDetectedError) {
-        console.error(chalk.red('❌ Multiple Platforms Detected:'));
-        console.error(chalk.red(error.message));
-        return false;
+        // Re-throw the error so it can be handled by the migrate command
+        throw error;
       }
 
       console.error(chalk.red('❌ An error occurred during the interactive workflow:'));

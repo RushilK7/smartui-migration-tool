@@ -3,7 +3,7 @@ import path from 'path';
 import fg from 'fast-glob';
 import yaml from 'js-yaml';
 import { XMLParser } from 'fast-xml-parser';
-import { DetectionResult, AnchorResult, PlatformNotDetectedError, MultiplePlatformsDetectedError, MismatchedSignalsError } from '../types';
+import { DetectionResult, AnchorResult, PlatformNotDetectedError, MultiplePlatformsDetectedError, MismatchedSignalsError, MultiDetectionResult, DetectedPlatform, DetectedFramework, DetectedLanguage } from '../types';
 import { logger } from '../utils/Logger';
 import { ProgressManager } from '../utils/ProgressManager';
 
@@ -14,6 +14,7 @@ import { ProgressManager } from '../utils/ProgressManager';
 export class Scanner {
   private projectPath: string;
   private verbose: boolean;
+  private multiDetectionMode: boolean = false;
   private ignorePatterns = [
     'node_modules/**',
     '.git/**',
@@ -127,6 +128,60 @@ export class Scanner {
   constructor(projectPath: string, verbose: boolean = false) {
     this.projectPath = projectPath;
     this.verbose = verbose;
+  }
+
+  /**
+   * Set multi-detection mode
+   */
+  public setMultiDetectionMode(enabled: boolean): void {
+    this.multiDetectionMode = enabled;
+  }
+
+  /**
+   * Multi-detection scanning method that collects all detected platforms/frameworks
+   */
+  public async scanMultiDetection(): Promise<MultiDetectionResult> {
+    const progress = new ProgressManager();
+    
+    try {
+      // Enable multi-detection mode
+      this.setMultiDetectionMode(true);
+      
+      progress.start({ title: 'Scanning for multiple detections...', total: 3 });
+
+      const platforms: DetectedPlatform[] = [];
+      const frameworks: DetectedFramework[] = [];
+      const languages: DetectedLanguage[] = [];
+
+      // Phase 1: Find all anchors (platforms)
+      progress.update(1, { title: 'Finding all platform anchors...' });
+      const allAnchors = await this.findAllAnchors();
+      platforms.push(...allAnchors);
+
+      // Phase 2: Find all frameworks
+      progress.update(2, { title: 'Detecting all frameworks...' });
+      const allFrameworks = await this.findAllFrameworks();
+      frameworks.push(...allFrameworks);
+
+      // Phase 3: Find all languages
+      progress.update(3, { title: 'Detecting all languages...' });
+      const allLanguages = await this.findAllLanguages();
+      languages.push(...allLanguages);
+
+      progress.complete({ title: 'Multi-detection scan completed' });
+
+      return {
+        platforms,
+        frameworks,
+        languages,
+        totalDetections: platforms.length + frameworks.length + languages.length
+      };
+
+    } catch (error) {
+      progress.complete({ title: 'Multi-detection scan failed' });
+      logger.debug(`Multi-detection scanner error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      throw new Error(`Multi-detection scanner error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
   }
 
   /**
@@ -260,7 +315,11 @@ export class Scanner {
     if (detectedAnchors.length > 1) {
       const platforms = detectedAnchors.map(anchor => anchor.platform);
       logger.debug(`Multiple platforms detected: ${platforms.join(', ')}`);
+      if (!this.multiDetectionMode) {
       throw new MultiplePlatformsDetectedError();
+      }
+      // In multi-detection mode, return the first platform but log all detected
+      logger.debug(`Multi-detection mode: Found ${detectedAnchors.length} platforms, returning first one`);
     }
 
     if (detectedAnchors.length === 1) {
@@ -382,7 +441,11 @@ export class Scanner {
       if (detectedPlatforms.length > 1) {
         const platforms = detectedPlatforms.map(p => p.platform);
         logger.debug(`Multiple platforms detected in JavaScript/TypeScript: ${platforms.join(', ')}`);
+        if (!this.multiDetectionMode) {
         throw new MultiplePlatformsDetectedError();
+        }
+        // In multi-detection mode, return the first platform but log all detected
+        logger.debug(`Multi-detection mode: Found ${detectedPlatforms.length} platforms, returning first one`);
       }
 
       if (detectedPlatforms.length === 1) {
@@ -458,7 +521,7 @@ export class Scanner {
       const lines = requirementsContent.split('\n').map(line => line.trim());
 
       // Check for Sauce Labs dependencies
-      if (lines.some(line => line.includes('saucelabs_visual'))) {
+        if (lines.some(line => line.includes('saucelabs_visual'))) {
         logger.debug(`Found 'saucelabs_visual' dependency`);
         return { 
           platform: 'Sauce Labs Visual', 
@@ -650,7 +713,7 @@ export class Scanner {
     
     if (bestFramework[1] > 0) {
       logger.debug(`Detected framework: ${bestFramework[0]} (score: ${bestFramework[1]})`);
-      return {
+    return {
         framework: bestFramework[0] as DetectionResult['framework'],
         evidence: frameworkEvidence[bestFramework[0]] || { files: [], signatures: [] }
       };
@@ -951,5 +1014,231 @@ export class Scanner {
     }
 
     return dependencies;
+  }
+
+  /**
+   * Find all platform anchors without throwing errors for multiple detections
+   */
+  private async findAllAnchors(): Promise<DetectedPlatform[]> {
+    const platforms: DetectedPlatform[] = [];
+
+    try {
+      const absoluteScanPath = path.resolve(this.projectPath);
+      
+      // Check JavaScript/TypeScript dependencies - collect all platforms
+      const jsPlatforms = await this.findAllJavaScriptPlatforms(absoluteScanPath);
+      platforms.push(...jsPlatforms);
+
+      // Check Java dependencies
+      const javaAnchors = await this.findJavaAnchor(absoluteScanPath);
+      if (javaAnchors.platform !== 'unknown') {
+        platforms.push({
+          name: javaAnchors.platform as 'Percy' | 'Applitools' | 'Sauce Labs Visual',
+          confidence: 'high',
+          evidence: {
+            source: 'pom.xml',
+            match: javaAnchors.evidence?.match || 'dependency',
+            files: ['pom.xml']
+          },
+          frameworks: javaAnchors.framework ? [javaAnchors.framework] : [],
+          languages: ['Java']
+        });
+      }
+
+      // Check Python dependencies
+      const pythonAnchors = await this.findPythonAnchor(absoluteScanPath);
+      if (pythonAnchors.platform !== 'unknown') {
+        platforms.push({
+          name: pythonAnchors.platform as 'Percy' | 'Applitools' | 'Sauce Labs Visual',
+          confidence: 'high',
+          evidence: {
+            source: 'requirements.txt',
+            match: pythonAnchors.evidence?.match || 'dependency',
+            files: ['requirements.txt']
+          },
+          frameworks: pythonAnchors.framework ? [pythonAnchors.framework] : [],
+          languages: ['Python']
+        });
+      }
+
+      // Check configuration files
+      const configAnchors = await this.findConfigAnchor(absoluteScanPath);
+      if (configAnchors.platform !== 'unknown') {
+        platforms.push({
+          name: configAnchors.platform as 'Percy' | 'Applitools' | 'Sauce Labs Visual',
+          confidence: 'high',
+          evidence: {
+            source: 'config file',
+            match: configAnchors.evidence?.match || 'config',
+            files: [configAnchors.evidence?.source || 'config']
+          },
+          frameworks: configAnchors.framework ? [configAnchors.framework] : [],
+          languages: configAnchors.language ? [configAnchors.language] : []
+        });
+      }
+
+    } catch (error) {
+      logger.debug(`Error finding anchors: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return platforms;
+  }
+
+  /**
+   * Find all frameworks without throwing errors
+   */
+  private async findAllFrameworks(): Promise<DetectedFramework[]> {
+    const frameworks: DetectedFramework[] = [];
+
+    try {
+      // This would be implemented based on the existing framework detection logic
+      // For now, return empty array - this can be expanded based on existing framework detection
+    } catch (error) {
+      logger.debug(`Error finding frameworks: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return frameworks;
+  }
+
+  /**
+   * Find all languages without throwing errors
+   */
+  private async findAllLanguages(): Promise<DetectedLanguage[]> {
+    const languages: DetectedLanguage[] = [];
+
+    try {
+      // Check for JavaScript/TypeScript
+      const packageJsonPath = path.join(this.projectPath, 'package.json');
+      try {
+        await fs.access(packageJsonPath);
+        languages.push({
+          name: 'JavaScript/TypeScript',
+          confidence: 'high',
+          evidence: {
+            files: ['package.json'],
+            extensions: ['.js', '.ts', '.jsx', '.tsx']
+          },
+          platforms: [],
+          frameworks: []
+        });
+      } catch (error) {
+        // No package.json found
+      }
+
+      // Check for Java
+      const pomXmlPath = path.join(this.projectPath, 'pom.xml');
+      try {
+        await fs.access(pomXmlPath);
+        languages.push({
+          name: 'Java',
+          confidence: 'high',
+          evidence: {
+            files: ['pom.xml'],
+            extensions: ['.java']
+          },
+          platforms: [],
+          frameworks: []
+        });
+      } catch (error) {
+        // No pom.xml found
+      }
+
+      // Check for Python
+      const requirementsPath = path.join(this.projectPath, 'requirements.txt');
+      try {
+        await fs.access(requirementsPath);
+        languages.push({
+          name: 'Python',
+          confidence: 'high',
+          evidence: {
+            files: ['requirements.txt'],
+            extensions: ['.py']
+          },
+          platforms: [],
+          frameworks: []
+        });
+      } catch (error) {
+        // No requirements.txt found
+      }
+
+    } catch (error) {
+      logger.debug(`Error finding languages: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+
+    return languages;
+  }
+
+  /**
+   * Find all JavaScript/TypeScript platforms without throwing errors
+   */
+  private async findAllJavaScriptPlatforms(absoluteScanPath: string): Promise<DetectedPlatform[]> {
+    const platforms: DetectedPlatform[] = [];
+    const packageJsonPath = path.join(absoluteScanPath, 'package.json');
+
+    try {
+      await fs.access(packageJsonPath);
+      logger.debug(`Attempting to read file: ${packageJsonPath}`);
+      const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+      const packageJson = JSON.parse(packageJsonContent);
+      logger.debug('Successfully read package.json.');
+
+      const dependencies = {
+        ...packageJson.dependencies,
+        ...packageJson.devDependencies,
+        ...packageJson.peerDependencies
+      };
+
+      // Check for Percy dependencies
+      if (dependencies['@percy/cypress'] || dependencies['@percy/playwright'] || 
+          dependencies['@percy/storybook'] || dependencies['@percy/cli']) {
+        platforms.push({
+          name: 'Percy',
+          confidence: 'high',
+          evidence: {
+            source: 'package.json',
+            match: Object.keys(dependencies).find(dep => dep.startsWith('@percy/')) || '@percy/*',
+            files: ['package.json']
+          },
+          frameworks: [],
+          languages: ['JavaScript/TypeScript']
+        });
+      }
+
+      // Check for Applitools dependencies
+      if (dependencies['eyes-cypress'] || dependencies['eyes-playwright'] || 
+          dependencies['eyes-selenium'] || dependencies['@applitools/eyes-cypress']) {
+        platforms.push({
+          name: 'Applitools',
+          confidence: 'high',
+          evidence: {
+            source: 'package.json',
+            match: Object.keys(dependencies).find(dep => dep.includes('eyes')) || 'eyes-*',
+            files: ['package.json']
+          },
+          frameworks: [],
+          languages: ['JavaScript/TypeScript']
+        });
+      }
+
+      // Check for Sauce Labs Visual dependencies
+      if (dependencies['@saucelabs/visual-testing'] || dependencies['sauce-visual-testing']) {
+        platforms.push({
+          name: 'Sauce Labs Visual',
+          confidence: 'high',
+          evidence: {
+            source: 'package.json',
+            match: Object.keys(dependencies).find(dep => dep.includes('sauce')) || 'sauce-*',
+            files: ['package.json']
+          },
+          frameworks: [],
+          languages: ['JavaScript/TypeScript']
+        });
+      }
+
+    } catch (error: any) {
+      logger.debug(`Could not read ${packageJsonPath}. Reason: ${error.message}`);
+    }
+
+    return platforms;
   }
 }

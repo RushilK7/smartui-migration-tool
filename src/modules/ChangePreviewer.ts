@@ -551,7 +551,7 @@ export class ChangePreviewer {
   }
 
   /**
-   * Display individual file change
+   * Display individual file change with detailed information
    */
   private displayFileChange(change: ChangePreview): void {
     const changeIcon = change.changeType === 'CREATE' ? '➕' : 
@@ -561,23 +561,49 @@ export class ChangePreviewer {
     
     if (change.changeType === 'CREATE') {
       console.log(chalk.green(`    ${chalk.bold('CREATE')} - New file will be created`));
+      // Show preview of new file content
+      if (change.newContent) {
+        const preview = change.newContent.length > 200 ? 
+          change.newContent.substring(0, 200) + '...' : 
+          change.newContent;
+        console.log(chalk.gray(`    Preview: ${preview}`));
+      }
     } else {
       console.log(chalk.blue(`    ${chalk.bold('MODIFY')} - ${change.changes.length} changes will be made`));
-    }
-
-    // Show first few changes
-    const changesToShow = change.changes.slice(0, 3);
-    changesToShow.forEach(changeDetail => {
-      console.log(chalk.gray(`      Line ${changeDetail.lineNumber}: ${changeDetail.description}`));
-    });
-
-    if (change.changes.length > 3) {
-      console.log(chalk.gray(`      ... and ${change.changes.length - 3} more changes`));
+      
+      // Show detailed changes with line-by-line diffs
+      console.log(chalk.gray('    Detailed Changes:'));
+      change.changes.forEach((changeDetail, index) => {
+        const lineNum = changeDetail.lineNumber;
+        const changeTypeIcon = changeDetail.changeType === 'ADD' ? '+' : 
+                              changeDetail.changeType === 'DELETE' ? '-' : '~';
+        const changeColor = changeDetail.changeType === 'ADD' ? chalk.green :
+                           changeDetail.changeType === 'DELETE' ? chalk.red : chalk.yellow;
+        
+        console.log(chalk.gray(`      ${index + 1}. Line ${lineNum}: ${changeTypeIcon} ${changeDetail.description}`));
+        
+        // Show before/after for modifications
+        if (changeDetail.changeType === 'MODIFY') {
+          if (changeDetail.originalLine) {
+            console.log(chalk.red(`         - ${changeDetail.originalLine.substring(0, 60)}${changeDetail.originalLine.length > 60 ? '...' : ''}`));
+          }
+          if (changeDetail.newLine) {
+            console.log(chalk.green(`         + ${changeDetail.newLine.substring(0, 60)}${changeDetail.newLine.length > 60 ? '...' : ''}`));
+          }
+        } else if (changeDetail.changeType === 'ADD' && changeDetail.newLine) {
+          console.log(chalk.green(`         + ${changeDetail.newLine.substring(0, 60)}${changeDetail.newLine.length > 60 ? '...' : ''}`));
+        } else if (changeDetail.changeType === 'DELETE' && changeDetail.originalLine) {
+          console.log(chalk.red(`         - ${changeDetail.originalLine.substring(0, 60)}${changeDetail.originalLine.length > 60 ? '...' : ''}`));
+        }
+      });
     }
 
     // Show warnings for this file
     if (change.warnings.length > 0) {
-      console.log(chalk.yellow(`    ⚠️  ${change.warnings.length} warning(s)`));
+      console.log(chalk.yellow(`    ⚠️  ${change.warnings.length} warning(s):`));
+      change.warnings.forEach(warning => {
+        console.log(chalk.yellow(`      • ${warning}`));
+      });
     }
   }
 }

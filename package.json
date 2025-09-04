@@ -1,6 +1,6 @@
 {
   "name": "smartui-migration-tool",
-  "version": "1.0.2",
+  "version": "1.1.0",
   "description": "Enterprise-grade CLI tool for migrating visual testing platforms to LambdaTest SmartUI",
   "main": "lib/index.js",
   "bin": {

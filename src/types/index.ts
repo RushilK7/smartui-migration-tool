@@ -17,6 +17,48 @@ export class MultiplePlatformsDetectedError extends Error {
   }
 }
 
+// Multi-detection result for when multiple platforms/frameworks are found
+export interface MultiDetectionResult {
+  platforms: DetectedPlatform[];
+  frameworks: DetectedFramework[];
+  languages: DetectedLanguage[];
+  totalDetections: number;
+}
+
+export interface DetectedPlatform {
+  name: 'Percy' | 'Applitools' | 'Sauce Labs Visual';
+  confidence: 'high' | 'medium' | 'low';
+  evidence: {
+    source: string; // e.g., 'package.json', 'config file', 'content scan'
+    match: string;  // e.g., '@percy/cli', 'eyes.check'
+    files: string[]; // Files that contain evidence
+  };
+  frameworks: string[]; // Associated frameworks
+  languages: string[];  // Associated languages
+}
+
+export interface DetectedFramework {
+  name: 'Cypress' | 'Playwright' | 'Selenium' | 'Storybook' | 'Jest' | 'Robot Framework' | 'Appium';
+  confidence: 'high' | 'medium' | 'low';
+  evidence: {
+    files: string[]; // Files that contain framework signatures
+    signatures: string[]; // Matching signature patterns
+  };
+  platforms: string[]; // Associated platforms
+  languages: string[]; // Associated languages
+}
+
+export interface DetectedLanguage {
+  name: 'JavaScript/TypeScript' | 'Java' | 'Python';
+  confidence: 'high' | 'medium' | 'low';
+  evidence: {
+    files: string[]; // Files that indicate this language
+    extensions: string[]; // File extensions found
+  };
+  platforms: string[]; // Associated platforms
+  frameworks: string[]; // Associated frameworks
+}
+
 export class MismatchedSignalsError extends Error {
   constructor(message: string) {
     super(message);
