@@ -29,7 +29,7 @@ export class WelcomeScreen {
       console.log(chalk.gray('─'.repeat(60)));
       
       // Display version and description
-      console.log(chalk.white('\n  SmartUI Migration Tool v1.0.0'));
+      console.log(chalk.white('\n  SmartUI Migration Tool v1.1.1'));
       console.log(chalk.gray('  Migrate your visual testing suite to LambdaTest SmartUI\n'));
       
       // Add a brief pause for visual impact

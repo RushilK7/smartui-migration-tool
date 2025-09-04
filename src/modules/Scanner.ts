@@ -24,7 +24,34 @@ export class Scanner {
     'coverage/**',
     '.nyc_output/**',
     '*.log',
-    '.DS_Store'
+    '.DS_Store',
+    // Exclude SmartUI Migration Tool's own files
+    'src/**',
+    'lib/**',
+    'miscellaneous/**',
+    'tests/**',
+    'bin/**',
+    'package.json',
+    'tsconfig.json',
+    'README.md',
+    '.eslintrc.json',
+    '.prettierrc',
+    '.prettierignore',
+    '.npmignore',
+    '.gitignore',
+    // Exclude any migration tool related files
+    '**/smartui-migration-tool*/**',
+    '**/migration-tool*/**',
+    '**/*migration*tool*/**',
+    // Exclude test files that might contain examples
+    '**/*.test.js',
+    '**/*.test.ts',
+    '**/*.spec.js',
+    '**/*.spec.ts',
+    '**/test*.js',
+    '**/test*.ts',
+    '**/debug*.js',
+    '**/debug*.ts'
   ];
 
   // Magic strings for each platform to search in source code
