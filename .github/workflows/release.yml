@@ -17,18 +17,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'pnpm'
-          
-      - name: Install pnpm
-        uses: pnpm/action-setup@v2
-        with:
-          version: latest
+          cache: 'npm'
           
       - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+        run: npm ci
         
       - name: Build and package executables
-        run: pnpm package
+        run: npm run package
         
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v1

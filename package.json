@@ -16,7 +16,7 @@
     "lint": "eslint src --ext .ts",
     "lint:fix": "eslint src --ext .ts --fix",
     "format": "prettier --write src/**/*.ts",
-    "package": "pnpm build && pkg ."
+    "package": "npm run build && pkg ."
   },
   "keywords": [
     "smartui",
@@ -31,11 +31,11 @@
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "https://github.com/lambdatest/smartui-migration-tool.git"
+    "url": "https://github.com/RushilK7/smartui-migration-tool.git"
   },
-  "homepage": "https://github.com/lambdatest/smartui-migration-tool#readme",
+  "homepage": "https://github.com/RushilK7/smartui-migration-tool#readme",
   "bugs": {
-    "url": "https://github.com/lambdatest/smartui-migration-tool/issues"
+    "url": "https://github.com/RushilK7/smartui-migration-tool/issues"
   },
   "dependencies": {
     "@babel/generator": "^7.28.3",
