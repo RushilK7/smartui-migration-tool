@@ -29,7 +29,6 @@ export class Scanner {
     'src/**',
     'lib/**',
     'miscellaneous/**',
-    'tests/**',
     'bin/**',
     'package.json',
     'tsconfig.json',
@@ -42,16 +41,7 @@ export class Scanner {
     // Exclude any migration tool related files
     '**/smartui-migration-tool*/**',
     '**/migration-tool*/**',
-    '**/*migration*tool*/**',
-    // Exclude test files that might contain examples
-    '**/*.test.js',
-    '**/*.test.ts',
-    '**/*.spec.js',
-    '**/*.spec.ts',
-    '**/test*.js',
-    '**/test*.ts',
-    '**/debug*.js',
-    '**/debug*.ts'
+    '**/*migration*tool*/**'
   ];
 
   // Magic strings for each platform to search in source code
@@ -407,6 +397,17 @@ export class Scanner {
         });
       }
 
+      if (dependencies['@percy/selenium-webdriver']) {
+        logger.debug(`Found '@percy/selenium-webdriver' dependency`);
+        detectedPlatforms.push({ 
+          platform: 'Percy', 
+          magicStrings: ['percySnapshot', 'percyScreenshot', 'driver.findElement', 'By.id', 'By.css'], 
+          framework: 'Selenium', 
+          language: 'JavaScript/TypeScript',
+          evidence: { source: 'package.json', match: '@percy/selenium-webdriver' }
+        });
+      }
+
       // Check for Applitools dependencies
       if (dependencies['@applitools/eyes-cypress']) {
         logger.debug(`Found '@applitools/eyes-cypress' dependency`);
@@ -493,15 +494,62 @@ export class Scanner {
    * Find anchor through Java dependencies
    */
   private async findJavaAnchor(absoluteScanPath: string): Promise<AnchorResult> {
+    logger.debug(`🔍 ENTERING findJavaAnchor method`);
     const pomXmlPath = path.join(absoluteScanPath, 'pom.xml');
     
     try {
       logger.debug(`Attempting to read file: ${pomXmlPath}`);
       const pomXmlContent = await fs.readFile(pomXmlPath, 'utf-8');
       logger.debug(`Successfully read pom.xml.`);
+      logger.debug(`🎯 IMMEDIATELY AFTER reading pom.xml - content length: ${pomXmlContent.length}`);
       
+      logger.debug(`About to parse XML content`);
       const parser = new XMLParser();
       const pomXml = parser.parse(pomXmlContent);
+      logger.debug(`XML parsing completed successfully`);
+
+      // Debug: Log the parsed dependencies
+      logger.debug(`About to extract dependencies`);
+      const allDependencies = this.extractDependencies(pomXml);
+      logger.debug(`Parsed dependencies count: ${allDependencies.length}`);
+      allDependencies.forEach((dep, index) => {
+        logger.debug(`Dependency ${index}: groupId=${dep.groupId}, artifactId=${dep.artifactId}`);
+      });
+
+      // Check for Percy dependencies
+      logger.debug(`Checking for Percy dependency: percy-appium-app with groupId io.percy`);
+      if (this.hasMavenDependency(pomXml, 'percy-appium-app', 'io.percy')) {
+        logger.debug(`Found 'percy-appium-app' from 'io.percy' dependency`);
+        return { 
+          platform: 'Percy', 
+          magicStrings: ['percyScreenshot', 'percy.screenshot', 'AppiumDriver', 'MobileElement', 'By.id'], 
+          framework: 'Appium', 
+          language: 'Java',
+          evidence: { source: 'pom.xml', match: 'percy-appium-app (io.percy)' }
+        };
+      }
+
+      if (this.hasMavenDependency(pomXml, 'percy-selenium-java', 'io.percy')) {
+        logger.debug(`Found 'percy-selenium-java' from 'io.percy' dependency`);
+        return { 
+          platform: 'Percy', 
+          magicStrings: ['percyScreenshot', 'percy.screenshot', 'WebDriver', 'ChromeDriver', 'By.id'], 
+          framework: 'Selenium', 
+          language: 'Java',
+          evidence: { source: 'pom.xml', match: 'percy-selenium-java (io.percy)' }
+        };
+      }
+
+      if (this.hasMavenDependency(pomXml, 'percy-playwright-java', 'io.percy')) {
+        logger.debug(`Found 'percy-playwright-java' from 'io.percy' dependency`);
+        return { 
+          platform: 'Percy', 
+          magicStrings: ['percyScreenshot', 'percy.screenshot', 'Page', 'Browser', 'Playwright'], 
+          framework: 'Playwright', 
+          language: 'Java',
+          evidence: { source: 'pom.xml', match: 'percy-playwright-java (io.percy)' }
+        };
+      }
 
       // Check for Applitools dependencies
       if (this.hasMavenDependency(pomXml, 'eyes-selenium-java5')) {
@@ -516,7 +564,7 @@ export class Scanner {
       }
 
       // Check for Sauce Labs dependencies
-      if (this.hasMavenDependency(pomXml, 'java-client', 'com.saucelabs.visual')) {
+        if (this.hasMavenDependency(pomXml, 'java-client', 'com.saucelabs.visual')) {
         logger.debug(`Found 'java-client' from 'com.saucelabs.visual' dependency`);
         return { 
           platform: 'Sauce Labs Visual', 
@@ -528,9 +576,10 @@ export class Scanner {
       }
 
     } catch (error: any) {
-      logger.debug(`Could not read ${pomXmlPath}. Reason: ${error.message}`);
+      logger.debug(`❌ Could not read ${pomXmlPath}. Reason: ${error.message}`);
     }
 
+    logger.debug(`🔍 EXITING findJavaAnchor method - returning unknown`);
     return { platform: 'unknown', magicStrings: [] };
   }
 

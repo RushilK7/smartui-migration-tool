@@ -4,11 +4,13 @@ import path from 'path';
 import { DetectionResult, ChangePreview, TransformationPreview } from '../types';
 import { logger } from '../utils/Logger';
 import { ProgressManager } from '../utils/ProgressManager';
+import { ConfigTransformer } from './ConfigTransformer';
 
 export interface TransformationOptions {
   createBackup: boolean;
   confirmEachFile: boolean;
   dryRun: boolean;
+  yes: boolean; // Skip all confirmations (auto mode)
 }
 
 export interface TransformationResult {
@@ -53,13 +55,15 @@ export class TransformationManager {
     // Show backup recommendation
     this.showBackupRecommendation();
 
-    // Get user confirmation
-    if (!options.dryRun) {
+    // Get user confirmation (skip if in auto mode or dry run)
+    if (!options.dryRun && !options.yes) {
       const confirmed = await this.getUserConfirmation(preview, options);
       if (!confirmed) {
         console.log(chalk.yellow('Transformation cancelled by user.'));
         return result;
       }
+    } else if (options.yes) {
+      console.log(chalk.green('🤖 Auto mode: Skipping user confirmation'));
     }
 
     // Create backups if requested
@@ -348,14 +352,39 @@ export class TransformationManager {
     options: TransformationOptions,
     result: TransformationResult
   ): Promise<void> {
+    console.log(chalk.blue('\n📁 Transforming configuration files...'));
+    
     // Filter changes by selected files
     const changesToProcess = this.selectedFiles.length > 0 
       ? configChanges.filter(change => this.selectedFiles.includes(change.filePath) || this.selectedFiles.includes('.smartui.json'))
       : configChanges;
-      
-    if (changesToProcess.length === 0) return;
 
-    console.log(chalk.blue('\n📁 Transforming configuration files...'));
+    // Transform package.json dependencies and scripts (always run when source platform detected)
+    try {
+      const configTransformer = new ConfigTransformer(this.projectPath);
+      await configTransformer.transformPackageJson(detectionResult);
+      console.log(chalk.green('  ✅ Transformed package.json dependencies and scripts'));
+      result.filesModified.push('package.json');
+    } catch (error) {
+      if ((error as any).code !== 'ENOENT') { // Ignore if package.json doesn't exist
+        const errorMsg = `Failed to transform package.json: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        result.errors.push(errorMsg);
+        console.log(chalk.red(`  ❌ ${errorMsg}`));
+      }
+    }
+
+    // Transform CI/CD YAML files
+    try {
+      const configTransformer = new ConfigTransformer(this.projectPath);
+      await configTransformer.transformCICDFiles(detectionResult);
+      console.log(chalk.green('  ✅ Transformed CI/CD YAML files'));
+    } catch (error) {
+      const errorMsg = `Failed to transform CI/CD files: ${error instanceof Error ? error.message : 'Unknown error'}`;
+      result.errors.push(errorMsg);
+      console.log(chalk.red(`  ❌ ${errorMsg}`));
+    }
+
+    if (changesToProcess.length === 0) return;
 
     // Create progress bar for individual file processing
     const fileProgress = ProgressManager.createFileProgress(changesToProcess.length, this.verbose);

@@ -326,9 +326,14 @@ export class ChangePreviewer {
             transformedContent = result.content;
             executionWarnings = result.warnings.map(w => w.message);
           } else {
-            const result = executionTransformer.transformPackageJson(originalContent, detectionResult.platform);
-            transformedContent = result.content;
-            executionWarnings = result.warnings.map(w => w.message);
+            // Use ConfigTransformer for complete package.json transformation (dependencies + scripts)
+            const configTransformer = new ConfigTransformer(this.projectPath);
+            // Create a temporary package.json to test transformation
+            const tempPackageJson = JSON.parse(originalContent);
+            configTransformer.transformDependencies(tempPackageJson, detectionResult);
+            configTransformer.transformScripts(tempPackageJson, detectionResult);
+            transformedContent = JSON.stringify(tempPackageJson, null, 2);
+            executionWarnings = [];
           }
 
           const changeDetails = this.generateDiff(originalContent, transformedContent, 'Package.json script transformation');

@@ -76,6 +76,11 @@ export default class Migrate extends Command {
       description: 'Ask for confirmation before transforming each file',
       default: false,
     }),
+    'auto': Flags.boolean({
+      char: 'a',
+      description: 'Fully automated mode - no user interaction required (migrate all files automatically)',
+      default: false,
+    }),
   };
 
   static override args = {
@@ -89,11 +94,33 @@ export default class Migrate extends Command {
     const { args, flags } = await this.parse();
 
     try {
-      // Check if interactive mode is requested
+      // Check if auto mode is requested
+      const autoMode = flags['auto'] as boolean;
       const interactiveMode = flags['interactive'] as boolean;
       let finalFlags = flags;
       
-      if (interactiveMode) {
+      if (autoMode) {
+        // Set smart defaults for fully automated mode
+        finalFlags = {
+          ...flags,
+          'backup': true,
+          'dry-run': false,
+          'verbose': flags['verbose'] || false, // Keep verbose if explicitly set
+          'yes': true,
+          'preview-only': false,
+          'confirm-each': false,
+        };
+        console.log(chalk.green.bold('\n🤖 AUTO MODE ENABLED'));
+        console.log(chalk.gray('='.repeat(50)));
+        console.log(chalk.white('Fully automated migration with smart defaults:'));
+        console.log(chalk.white('  • Backup: Enabled'));
+        console.log(chalk.white('  • Dry run: Disabled'));
+        console.log(chalk.white('  • Verbose: Disabled'));
+        console.log(chalk.white('  • Auto confirm: Enabled'));
+        console.log(chalk.white('  • Preview only: Disabled'));
+        console.log(chalk.white('  • Confirm each file: Disabled'));
+        console.log(chalk.gray('='.repeat(50)));
+      } else if (interactiveMode) {
         finalFlags = await this.selectFlagsInteractively(flags);
       }
 
@@ -107,6 +134,7 @@ export default class Migrate extends Command {
         logger.verbose(`Dry run: ${finalFlags['dry-run']}`);
         logger.verbose(`Auto confirm: ${finalFlags['yes']}`);
         logger.verbose(`Backup: ${finalFlags['backup']}`);
+        logger.verbose(`Auto mode: ${autoMode}`);
         logger.verbose(`Interactive mode: ${interactiveMode}`);
       }
 
@@ -157,7 +185,7 @@ export default class Migrate extends Command {
         // Try normal scan first
         detectionResult = await scanner.scan();
         logger.verbose(`Advanced scan completed - Platform: ${detectionResult.platform}, Framework: ${detectionResult.framework}, Language: ${detectionResult.language}`);
-        InteractiveCLI.showSuccess('Project scan completed');
+      InteractiveCLI.showSuccess('Project scan completed');
       } catch (error: any) {
         // If multiple platforms detected, use multi-detection
         if (error.name === 'MultiplePlatformsDetectedError') {
@@ -248,11 +276,20 @@ export default class Migrate extends Command {
       // Step 2.5: Advanced file selection
       InteractiveCLI.showInfo('Step 2.5: Advanced file selection...');
       
-      // Prompt user for migration scope
-      const migrationScope = await FileSelector.promptMigrationScope(analysisResult);
-      
       let finalAnalysisResult = analysisResult;
       let selectedFiles: string[] = [];
+      
+      if (autoMode) {
+        // Auto mode: migrate all files automatically
+        InteractiveCLI.showInfo('Auto mode: Migrating all files automatically');
+        selectedFiles = analysisResult.changes
+          .filter(change => change.type !== 'INFO')
+          .map(change => change.filePath);
+        finalAnalysisResult = analysisResult;
+        InteractiveCLI.showInfo(`Proceeding with migration for all ${selectedFiles.length} files...`);
+      } else {
+        // Interactive mode: prompt user for migration scope
+        const migrationScope = await FileSelector.promptMigrationScope(analysisResult);
       
       if (migrationScope === 'cancel') {
         InteractiveCLI.showInfo('Migration cancelled by user.');
@@ -273,6 +310,7 @@ export default class Migrate extends Command {
           .map(change => change.filePath);
         
         InteractiveCLI.showInfo(`Proceeding with migration for all ${selectedFiles.length} files...`);
+        }
       }
 
       // Step 3: Generate transformation preview
@@ -307,7 +345,8 @@ export default class Migrate extends Command {
       const transformationOptions = {
         createBackup: finalFlags['backup'] as boolean,
         confirmEachFile: finalFlags['confirm-each'] as boolean,
-        dryRun: finalFlags['dry-run'] as boolean
+        dryRun: finalFlags['dry-run'] as boolean,
+        yes: finalFlags['yes'] as boolean
       };
       
       // Execute the transformation

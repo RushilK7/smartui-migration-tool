@@ -1,8 +1,12 @@
-import { ScanResult, TransformResult, SmartUIConfig, PercyDetection, ApplitoolsDetection, SauceLabsDetection, ConfigTransformationResult, TransformationWarning } from '../types';
+import { ScanResult, TransformResult, SmartUIConfig, PercyDetection, ApplitoolsDetection, SauceLabsDetection, ConfigTransformationResult, TransformationWarning, DetectionResult } from '../types';
 import yaml from 'js-yaml';
 import { parse } from '@babel/parser';
 import traverse from '@babel/traverse';
 import * as t from '@babel/types';
+import { promises as fs } from 'fs';
+import path from 'path';
+import { logger } from '../utils/Logger';
+import { getDependencyMappings, getEnvVarMappings, isSourcePackage, getSmartUIPackage } from '../utils/DependencyMapper';
 
 /**
  * ConfigTransformer module for transforming configuration files
@@ -23,6 +27,411 @@ export class ConfigTransformer {
   public async transformConfigs(scanResult: ScanResult): Promise<TransformResult> {
     // TODO: Implement configuration transformation logic
     throw new Error('ConfigTransformer.transformConfigs() not implemented yet');
+  }
+
+  /**
+   * Transforms CI/CD YAML files to SmartUI format
+   * @param detectionResult - Detection result containing platform/framework info
+   * @returns Promise<void>
+   */
+  public async transformCICDFiles(detectionResult: DetectionResult): Promise<void> {
+    const platform = detectionResult.platform;
+    const framework = detectionResult.framework;
+    
+    // Find all YAML files in .github/workflows and other common CI directories
+    const ciPatterns = [
+      '.github/workflows/*.yml',
+      '.github/workflows/*.yaml',
+      '.gitlab-ci.yml',
+      'azure-pipelines.yml',
+      'circle.yml',
+      'travis.yml'
+    ];
+
+    for (const pattern of ciPatterns) {
+      try {
+        const yamlFiles = await this.findFiles(pattern);
+        
+        for (const yamlFile of yamlFiles) {
+          await this.transformYAMLFile(yamlFile, platform, framework);
+        }
+      } catch (error) {
+        logger.debug(`No files found for pattern: ${pattern}`);
+      }
+    }
+  }
+
+  /**
+   * Transforms package.json dependencies and scripts to SmartUI format
+   * @param detectionResult - Detection result containing platform/framework info
+   * @returns Promise<void>
+   */
+  public async transformPackageJson(detectionResult: DetectionResult): Promise<void> {
+    const packageJsonPath = path.join(this.projectPath, 'package.json');
+    
+    try {
+      // Check if package.json exists
+      await fs.access(packageJsonPath);
+      
+      // Read and parse package.json
+      const packageJsonContent = await fs.readFile(packageJsonPath, 'utf-8');
+      const packageJson = JSON.parse(packageJsonContent);
+      
+      logger.debug('Transforming package.json dependencies and scripts');
+      
+      // Transform dependencies
+      this.transformDependencies(packageJson, detectionResult);
+      
+      // Transform scripts
+      this.transformScripts(packageJson, detectionResult);
+      
+      // Write back the transformed package.json
+      await fs.writeFile(packageJsonPath, JSON.stringify(packageJson, null, 2));
+      
+      logger.debug('Successfully transformed package.json');
+      
+    } catch (error) {
+      if ((error as any).code === 'ENOENT') {
+        logger.debug('No package.json found, skipping transformation');
+        return;
+      }
+      throw new Error(`Failed to transform package.json: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Transforms dependencies from Percy/Applitools/Sauce Labs to SmartUI
+   * @param packageJson - Package.json object
+   * @param detectionResult - Detection result
+   */
+  public transformDependencies(packageJson: any, detectionResult: DetectionResult): void {
+    if (!packageJson.dependencies && !packageJson.devDependencies) {
+      return;
+    }
+
+    const platform = detectionResult.platform;
+    const dependencyMappings = getDependencyMappings(platform);
+
+    if (Object.keys(dependencyMappings).length === 0) {
+      logger.debug(`No dependency mappings found for platform: ${platform}`);
+      return;
+    }
+
+    logger.debug(`Transforming dependencies for platform: ${platform}`);
+    logger.debug(`Available mappings: ${Object.keys(dependencyMappings).join(', ')}`);
+
+    // Transform dependencies
+    this.transformDependencySection(packageJson.dependencies, dependencyMappings, platform);
+    this.transformDependencySection(packageJson.devDependencies, dependencyMappings, platform);
+  }
+
+  /**
+   * Transforms a dependency section (dependencies or devDependencies)
+   * @param dependencies - Dependency object
+   * @param mappings - Dependency mappings
+   * @param platform - Source platform
+   */
+  private transformDependencySection(dependencies: any, mappings: Record<string, string>, platform: string): void {
+    if (!dependencies) return;
+
+    const transformedPackages: string[] = [];
+    const addedPackages: string[] = [];
+
+    Object.keys(dependencies).forEach(depName => {
+      if (mappings[depName]) {
+        const smartuiPackage = mappings[depName];
+        const version = dependencies[depName];
+        
+        // Remove old dependency
+        delete dependencies[depName];
+        transformedPackages.push(depName);
+        
+        // Add SmartUI dependency (only if not already present)
+        if (!dependencies[smartuiPackage]) {
+          dependencies[smartuiPackage] = version;
+          addedPackages.push(smartuiPackage);
+        }
+        
+        logger.debug(`Transformed dependency: ${depName} → ${smartuiPackage}`);
+      }
+    });
+
+    if (transformedPackages.length > 0) {
+      logger.debug(`Transformed ${transformedPackages.length} dependencies for ${platform}: ${transformedPackages.join(', ')}`);
+    }
+    if (addedPackages.length > 0) {
+      logger.debug(`Added ${addedPackages.length} SmartUI dependencies: ${addedPackages.join(', ')}`);
+    }
+  }
+
+  /**
+   * Transforms scripts from Percy/Applitools to SmartUI
+   * @param packageJson - Package.json object
+   * @param detectionResult - Detection result
+   */
+  public transformScripts(packageJson: any, detectionResult: DetectionResult): void {
+    if (!packageJson.scripts) {
+      logger.debug('No scripts section found in package.json');
+      return;
+    }
+
+    const platform = detectionResult.platform;
+    const framework = detectionResult.framework;
+    let transformedScripts = 0;
+
+    Object.keys(packageJson.scripts).forEach(scriptName => {
+      const originalScript = packageJson.scripts[scriptName];
+      let transformedScript = this.transformScriptCommand(originalScript, platform, framework);
+      
+      if (transformedScript !== originalScript) {
+        packageJson.scripts[scriptName] = transformedScript;
+        transformedScripts++;
+        logger.debug(`Transformed script '${scriptName}':`);
+        logger.debug(`  Before: ${originalScript}`);
+        logger.debug(`  After:  ${transformedScript}`);
+      }
+    });
+
+    if (transformedScripts > 0) {
+      logger.debug(`Transformed ${transformedScripts} script(s) for ${platform}`);
+    } else {
+      logger.debug(`No scripts needed transformation for ${platform}`);
+    }
+  }
+
+  /**
+   * Transform a single script command based on platform and framework
+   * @param script - The script command string
+   * @param platform - Source platform (Percy, Applitools, Sauce Labs Visual)
+   * @param framework - Framework (Cypress, Playwright, Selenium, etc.)
+   * @returns Transformed script command
+   */
+  private transformScriptCommand(script: string, platform: string, framework: string): string {
+    let transformedScript = script;
+
+    switch (platform) {
+      case 'Percy':
+        // Percy: Replace "percy exec --" with "npx smartui exec --"
+        if (transformedScript.includes('percy exec --')) {
+          transformedScript = transformedScript.replace(/percy\s+exec\s+--/g, 'npx smartui exec --');
+        } else if (transformedScript.includes('npx percy')) {
+          transformedScript = transformedScript.replace(/npx\s+percy/g, 'npx smartui');
+        } else if (transformedScript.includes('percy ')) {
+          transformedScript = transformedScript.replace(/percy\s+/g, 'smartui ');
+        }
+        break;
+
+      case 'Applitools':
+        // Applitools: Prepend "npx smartui exec --" to Cypress/Playwright commands
+        if (this.isFrameworkCommand(transformedScript, framework)) {
+          transformedScript = `npx smartui exec -- ${transformedScript}`;
+        }
+        break;
+
+      case 'Sauce Labs Visual':
+        // Sauce Labs: Prepend "npx smartui exec --" to framework commands
+        if (this.isFrameworkCommand(transformedScript, framework)) {
+          transformedScript = `npx smartui exec -- ${transformedScript}`;
+        }
+        break;
+
+      default:
+        logger.debug(`Unknown platform for script transformation: ${platform}`);
+    }
+
+    return transformedScript;
+  }
+
+  /**
+   * Check if a script command is a framework execution command
+   * @param script - The script command
+   * @param framework - The framework
+   * @returns True if this is a framework command that needs SmartUI wrapping
+   */
+  private isFrameworkCommand(script: string, framework: string): boolean {
+    const frameworkPatterns: { [key: string]: string[] } = {
+      'Cypress': ['cypress run', 'cypress open', 'cypress exec'],
+      'Playwright': ['playwright test', 'playwright run'],
+      'Selenium': ['selenium', 'webdriver'],
+      'Puppeteer': ['puppeteer'],
+      'WebdriverIO': ['wdio', 'webdriverio']
+    };
+
+    const patterns = frameworkPatterns[framework] || [];
+    return patterns.some((pattern: string) => script.toLowerCase().includes(pattern));
+  }
+
+  /**
+   * Find files matching a glob pattern
+   * @param pattern - Glob pattern
+   * @returns Array of file paths
+   */
+  private async findFiles(pattern: string): Promise<string[]> {
+    const fg = await import('fast-glob');
+    return await fg.default(pattern, { cwd: this.projectPath });
+  }
+
+  /**
+   * Transform a single YAML file
+   * @param yamlFile - Path to YAML file
+   * @param platform - Source platform
+   * @param framework - Framework
+   */
+  private async transformYAMLFile(yamlFile: string, platform: string, framework: string): Promise<void> {
+    try {
+      const yamlPath = path.join(this.projectPath, yamlFile);
+      const yamlContent = await fs.readFile(yamlPath, 'utf-8');
+      
+      // Parse YAML
+      const yamlObj = yaml.load(yamlContent) as any;
+      
+      if (!yamlObj) {
+        logger.debug(`Could not parse YAML file: ${yamlFile}`);
+        return;
+      }
+
+      // Transform the YAML object
+      const transformedYaml = this.transformYAMLObject(yamlObj, platform, framework);
+      
+      // Write back if changes were made
+      if (JSON.stringify(transformedYaml) !== JSON.stringify(yamlObj)) {
+        const newContent = yaml.dump(transformedYaml, { 
+          indent: 2,
+          lineWidth: -1,
+          noRefs: true
+        });
+        
+        await fs.writeFile(yamlPath, newContent, 'utf-8');
+        logger.debug(`Transformed YAML file: ${yamlFile}`);
+      }
+      
+    } catch (error) {
+      logger.debug(`Failed to transform YAML file ${yamlFile}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  /**
+   * Transform YAML object structure
+   * @param yamlObj - Parsed YAML object
+   * @param platform - Source platform
+   * @param framework - Framework
+   * @returns Transformed YAML object
+   */
+  private transformYAMLObject(yamlObj: any, platform: string, framework: string): any {
+    if (typeof yamlObj !== 'object' || yamlObj === null) {
+      return yamlObj;
+    }
+
+    if (Array.isArray(yamlObj)) {
+      return yamlObj.map(item => this.transformYAMLObject(item, platform, framework));
+    }
+
+    const transformed: any = {};
+    
+    for (const [key, value] of Object.entries(yamlObj)) {
+      if (key === 'run' && typeof value === 'string') {
+        // Transform run commands
+        transformed[key] = this.transformScriptCommand(value, platform, framework);
+      } else if (key === 'env' && typeof value === 'object') {
+        // Transform environment variables
+        transformed[key] = this.transformEnvironmentVariables(value, platform);
+      } else if (key === 'name' && typeof value === 'string') {
+        // Transform step names
+        transformed[key] = this.transformStepName(value, platform);
+      } else {
+        // Recursively transform nested objects
+        transformed[key] = this.transformYAMLObject(value, platform, framework);
+      }
+    }
+
+    return transformed;
+  }
+
+  /**
+   * Transform environment variables in CI/CD files
+   * @param envObj - Environment variables object
+   * @param platform - Source platform
+   * @returns Transformed environment variables
+   */
+  private transformEnvironmentVariables(envObj: any, platform: string): any {
+    const envMappings = getEnvVarMappings(platform);
+    const transformed: any = {};
+    const migrationNotes: string[] = [];
+
+    for (const [key, value] of Object.entries(envObj)) {
+      if (envMappings[key]) {
+        // Add migration note for removed variable
+        migrationNotes.push(`# MIGRATION-NOTE: ${key} is no longer needed for SmartUI.`);
+        migrationNotes.push(`# ${key}: ${value}`);
+        
+        // Add new SmartUI variable
+        const newKey = envMappings[key];
+        transformed[newKey] = `$\{\{ secrets.${newKey.toUpperCase()} \}\}`;
+        migrationNotes.push(`# MIGRATION-NOTE: Please configure ${newKey.toUpperCase()} in your CI provider's settings for SmartUI.`);
+      } else {
+        // Keep unrelated variables
+        transformed[key] = value;
+      }
+    }
+
+    // Add required SmartUI environment variables if not present
+    const requiredVars = this.getRequiredSmartUIVars(platform);
+    for (const [varName, varValue] of Object.entries(requiredVars)) {
+      if (!transformed[varName]) {
+        transformed[varName] = varValue;
+        migrationNotes.push(`# MIGRATION-NOTE: Please configure ${varName} in your CI provider's settings for SmartUI.`);
+      }
+    }
+
+    // Add migration notes as comments (this is a simplified approach)
+    if (migrationNotes.length > 0) {
+      transformed['_migration_notes'] = migrationNotes;
+    }
+
+    return transformed;
+  }
+
+  /**
+   * Transform step names in CI/CD files
+   * @param name - Original step name
+   * @param platform - Source platform
+   * @returns Transformed step name
+   */
+  private transformStepName(name: string, platform: string): string {
+    const nameMappings: { [platform: string]: { [oldName: string]: string } } = {
+      'Percy': {
+        'Run Percy Tests': 'Run SmartUI Tests',
+        'Percy Visual Tests': 'SmartUI Visual Tests',
+        'Percy Snapshot': 'SmartUI Snapshot'
+      },
+      'Applitools': {
+        'Run Applitools Tests': 'Run SmartUI Tests',
+        'Applitools Visual Tests': 'SmartUI Visual Tests',
+        'Eyes Check': 'SmartUI Check'
+      },
+      'Sauce Labs Visual': {
+        'Run Sauce Labs Tests': 'Run SmartUI Tests',
+        'Sauce Visual Tests': 'SmartUI Visual Tests'
+      }
+    };
+
+    const mappings = nameMappings[platform] || {};
+    return mappings[name] || name;
+  }
+
+  /**
+   * Get required SmartUI environment variables for a platform
+   * @param platform - Source platform
+   * @returns Required environment variables
+   */
+  private getRequiredSmartUIVars(platform: string): { [key: string]: string } {
+    const baseVars = {
+      'PROJECT_TOKEN': '$\{\{ secrets.SMARTUI_PROJECT_TOKEN \}\}',
+      'LT_USERNAME': '$\{\{ secrets.LT_USERNAME \}\}',
+      'LT_ACCESS_KEY': '$\{\{ secrets.LT_ACCESS_KEY \}\}'
+    };
+
+    return baseVars;
   }
 
 
