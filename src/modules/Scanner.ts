@@ -25,11 +25,11 @@ export class Scanner {
     '.nyc_output/**',
     '*.log',
     '.DS_Store',
-    // Exclude SmartUI Migration Tool's own files
-    'src/**',
-    'lib/**',
-    'miscellaneous/**',
-    'bin/**',
+    // Exclude SmartUI Migration Tool's own files (but not user's src directories)
+    '**/smartui-migration-tool-dev/src/**',
+    '**/smartui-migration-tool-dev/lib/**',
+    '**/smartui-migration-tool-dev/miscellaneous/**',
+    '**/smartui-migration-tool-dev/bin/**',
     'package.json',
     'tsconfig.json',
     'README.md',
@@ -55,6 +55,15 @@ export class Scanner {
       '@percy/cypress',
       '@percy/playwright',
       '@percy/storybook',
+      // Java-specific patterns for Percy
+      'percy.snapshot(',
+      'percyScreenshot(',
+      'Percy.snapshot(',
+      'PercyScreenshot(',
+      'io.percy',
+      'import io.percy',
+      'new Percy(',
+      'Percy percy',
       // Framework-specific patterns for Percy projects
       'cy.visit',
       'cy.get',
@@ -74,7 +83,20 @@ export class Scanner {
       'eyes.checkElement',
       '@applitools/eyes',
       'eyes.selenium',
-      'eyes.playwright'
+      'eyes.playwright',
+      // Java-specific patterns for Applitools
+      'eyes.check(',
+      'eyes.open(',
+      'eyes.close(',
+      'eyes.checkWindow(',
+      'eyes.checkElement(',
+      'Eyes.check(',
+      'Eyes.open(',
+      'Eyes.close(',
+      'com.applitools',
+      'import com.applitools',
+      'new Eyes(',
+      'Eyes eyes'
     ],
     'Sauce Labs Visual': [
       'sauceVisualCheck',
@@ -85,7 +107,16 @@ export class Scanner {
       'saucelabs_visual',
       'SauceVisual',
       'check_page',
-      'snapshot'
+      'snapshot',
+      // Java-specific patterns for Sauce Labs
+      'sauce.screenshot(',
+      'sauceVisualCheck(',
+      'sauceVisualSnapshot(',
+      'Sauce.screenshot(',
+      'com.saucelabs',
+      'import com.saucelabs',
+      'new Sauce(',
+      'Sauce sauce'
     ]
   };
 
@@ -206,6 +237,7 @@ export class Scanner {
    * @returns Promise<DetectionResult> - Analysis results
    */
   public async scan(): Promise<DetectionResult> {
+    console.log(`🔍 SCAN METHOD CALLED for project: ${this.projectPath}`);
     try {
       // Standardize on absolute paths - resolve the user-provided path immediately
       const absoluteScanPath = path.resolve(this.projectPath);
@@ -243,7 +275,9 @@ export class Scanner {
 
       progress.update(3, { title: 'Performing deep content search' });
       logger.debug('Phase 2: Performing deep content search');
+      console.log(`🔍 ABOUT TO CALL deepContentSearch with magicStrings: ${JSON.stringify(magicStrings)}`);
       const sourceFiles = await this.deepContentSearch(absoluteScanPath, magicStrings);
+      console.log(`🔍 DEEP CONTENT SEARCH RETURNED: ${sourceFiles.length} files`);
       logger.debug(`Deep search found ${sourceFiles.length} source files with magic strings`);
 
       // If we found source files but no anchor, determine platform from content
@@ -522,7 +556,7 @@ export class Scanner {
         logger.debug(`Found 'percy-appium-app' from 'io.percy' dependency`);
         return { 
           platform: 'Percy', 
-          magicStrings: ['percyScreenshot', 'percy.screenshot', 'AppiumDriver', 'MobileElement', 'By.id'], 
+          magicStrings: this.platformMagicStrings['Percy'], 
           framework: 'Appium', 
           language: 'Java',
           evidence: { source: 'pom.xml', match: 'percy-appium-app (io.percy)' }
@@ -533,7 +567,7 @@ export class Scanner {
         logger.debug(`Found 'percy-selenium-java' from 'io.percy' dependency`);
         return { 
           platform: 'Percy', 
-          magicStrings: ['percyScreenshot', 'percy.screenshot', 'WebDriver', 'ChromeDriver', 'By.id'], 
+          magicStrings: this.platformMagicStrings['Percy'], 
           framework: 'Selenium', 
           language: 'Java',
           evidence: { source: 'pom.xml', match: 'percy-selenium-java (io.percy)' }
@@ -544,7 +578,7 @@ export class Scanner {
         logger.debug(`Found 'percy-playwright-java' from 'io.percy' dependency`);
         return { 
           platform: 'Percy', 
-          magicStrings: ['percyScreenshot', 'percy.screenshot', 'Page', 'Browser', 'Playwright'], 
+          magicStrings: this.platformMagicStrings['Percy'], 
           framework: 'Playwright', 
           language: 'Java',
           evidence: { source: 'pom.xml', match: 'percy-playwright-java (io.percy)' }
@@ -556,7 +590,7 @@ export class Scanner {
         logger.debug(`Found 'eyes-selenium-java5' dependency`);
         return { 
           platform: 'Applitools', 
-          magicStrings: ['eyes.check', 'eyes.open', 'eyes.close', 'new ChromeDriver', 'By.id', 'WebDriver'], 
+          magicStrings: this.platformMagicStrings['Applitools'], 
           framework: 'Selenium', 
           language: 'Java',
           evidence: { source: 'pom.xml', match: 'eyes-selenium-java5' }
@@ -568,7 +602,7 @@ export class Scanner {
         logger.debug(`Found 'java-client' from 'com.saucelabs.visual' dependency`);
         return { 
           platform: 'Sauce Labs Visual', 
-          magicStrings: ['sauceVisualCheck', 'sauceVisualSnapshot'], 
+          magicStrings: this.platformMagicStrings['Sauce Labs Visual'], 
           framework: 'Selenium', 
           language: 'Java',
           evidence: { source: 'pom.xml', match: 'java-client (com.saucelabs.visual)' }
@@ -671,7 +705,11 @@ export class Scanner {
    * Phase 2: Deep Content Search - Find source files containing magic strings
    */
   private async deepContentSearch(absoluteScanPath: string, magicStrings: string[]): Promise<string[]> {
+    console.log(`🔍 DEEP CONTENT SEARCH CALLED with ${magicStrings.length} magic strings`);
+    console.log(`🔍 Magic strings: ${JSON.stringify(magicStrings)}`);
     logger.debug(`Searching for source files containing magic strings: ${magicStrings.join(', ')}`);
+    logger.debug(`Magic strings array length: ${magicStrings.length}`);
+    logger.debug(`Magic strings array: ${JSON.stringify(magicStrings)}`);
     
     // Get all potential source files
     const sourcePatterns = [
@@ -684,12 +722,21 @@ export class Scanner {
       '**/*.robot'
     ];
 
+    logger.debug(`Source patterns: ${JSON.stringify(sourcePatterns)}`);
+    logger.debug(`Ignore patterns: ${JSON.stringify(this.ignorePatterns)}`);
+    logger.debug(`Searching in directory: ${absoluteScanPath}`);
+
     const sourceFiles = await fg(sourcePatterns, {
       cwd: absoluteScanPath,
       ignore: this.ignorePatterns
     });
 
+    console.log(`🔍 DEBUG: Found ${sourceFiles.length} potential source files to search`);
+    console.log(`🔍 DEBUG: Source files: ${JSON.stringify(sourceFiles)}`);
+    console.log(`🔍 DEBUG: Magic strings: ${JSON.stringify(magicStrings)}`);
+    console.log(`🔍 DEBUG: Ignore patterns: ${JSON.stringify(this.ignorePatterns)}`);
     logger.debug(`Found ${sourceFiles.length} potential source files to search`);
+    logger.debug(`Source files: ${JSON.stringify(sourceFiles)}`);
 
     const matchingFiles: string[] = [];
 

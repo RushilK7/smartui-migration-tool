@@ -5,6 +5,7 @@ import traverse from '@babel/traverse';
 import * as t from '@babel/types';
 import { promises as fs } from 'fs';
 import path from 'path';
+import { XMLParser, XMLBuilder } from 'fast-xml-parser';
 import { logger } from '../utils/Logger';
 import { getDependencyMappings, getEnvVarMappings, isSourcePackage, getSmartUIPackage } from '../utils/DependencyMapper';
 
@@ -97,6 +98,132 @@ export class ConfigTransformer {
       }
       throw new Error(`Failed to transform package.json: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
+  }
+
+  /**
+   * Transforms .csproj files for C# projects
+   * @param detectionResult - Detection result containing platform/framework info
+   * @returns Promise<void>
+   */
+  public async transformCsprojFiles(detectionResult: DetectionResult): Promise<void> {
+    const csprojFiles = await this.findFiles('**/*.csproj');
+    
+    for (const csprojFile of csprojFiles) {
+      try {
+        const csprojPath = path.join(this.projectPath, csprojFile);
+        const csprojContent = await fs.readFile(csprojPath, 'utf-8');
+        
+        logger.debug(`Transforming .csproj file: ${csprojFile}`);
+        
+        // Parse XML content
+        const parser = new XMLParser({
+          ignoreAttributes: false,
+          attributeNamePrefix: '@_',
+          preserveOrder: true
+        });
+        
+        const csprojXml = parser.parse(csprojContent);
+        
+        // Transform package references
+        this.transformCsprojPackageReferences(csprojXml, detectionResult);
+        
+        // Build XML back
+        const builder = new XMLBuilder({
+          ignoreAttributes: false,
+          attributeNamePrefix: '@_',
+          preserveOrder: true,
+          format: true,
+          indentBy: '  '
+        });
+        
+        const transformedContent = builder.build(csprojXml);
+        await fs.writeFile(csprojPath, transformedContent, 'utf-8');
+        
+        logger.debug(`Successfully transformed .csproj file: ${csprojFile}`);
+        
+      } catch (error) {
+        logger.debug(`Failed to transform .csproj file ${csprojFile}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+  }
+
+  /**
+   * Transform package references in .csproj files
+   */
+  private transformCsprojPackageReferences(csprojXml: any, detectionResult: DetectionResult): void {
+    const packageMappings = this.getCsprojPackageMappings(detectionResult.platform, detectionResult.framework);
+    
+    // Find all ItemGroup elements
+    const itemGroups = this.findCsprojItemGroups(csprojXml);
+    
+    for (const itemGroup of itemGroups) {
+      if (itemGroup.PackageReference) {
+        const packageRefs = Array.isArray(itemGroup.PackageReference) 
+          ? itemGroup.PackageReference 
+          : [itemGroup.PackageReference];
+        
+        for (const packageRef of packageRefs) {
+          if (packageRef.include) {
+            const oldInclude = packageRef.include;
+            
+            // Check if this package needs to be replaced
+            for (const [oldPackage, newPackage] of Object.entries(packageMappings)) {
+              if (oldInclude.includes(oldPackage)) {
+                packageRef.include = newPackage;
+                packageRef.version = '1.0.0'; // SmartUI version
+                
+                logger.debug(`Replaced package: ${oldInclude} -> ${newPackage}`);
+                break;
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+
+  /**
+   * Find all ItemGroup elements in .csproj XML
+   */
+  private findCsprojItemGroups(csprojXml: any): any[] {
+    const itemGroups: any[] = [];
+    
+    if (csprojXml.Project && csprojXml.Project.ItemGroup) {
+      const groups = Array.isArray(csprojXml.Project.ItemGroup) 
+        ? csprojXml.Project.ItemGroup 
+        : [csprojXml.Project.ItemGroup];
+      
+      itemGroups.push(...groups);
+    }
+    
+    return itemGroups;
+  }
+
+  /**
+   * Get package mappings for .csproj files
+   */
+  private getCsprojPackageMappings(platform: string, framework: string): { [key: string]: string } {
+    const mappings: { [key: string]: string } = {};
+
+    switch (platform) {
+      case 'Applitools':
+        mappings['Applitools.Eyes'] = 'LambdaTest.SmartUI';
+        mappings['Applitools.Selenium'] = 'LambdaTest.SmartUI';
+        mappings['Applitools.Playwright'] = 'LambdaTest.SmartUI';
+        mappings['Eyes.Playwright'] = 'LambdaTest.SmartUI';
+        mappings['Applitools'] = 'LambdaTest.SmartUI';
+        break;
+      case 'Percy':
+        mappings['Percy'] = 'LambdaTest.SmartUI';
+        mappings['percy'] = 'LambdaTest.SmartUI';
+        break;
+      case 'Sauce Labs':
+        mappings['SauceLabs'] = 'LambdaTest.SmartUI';
+        mappings['Sauce'] = 'LambdaTest.SmartUI';
+        break;
+    }
+
+    return mappings;
   }
 
   /**

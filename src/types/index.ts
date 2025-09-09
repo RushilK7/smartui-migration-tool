@@ -49,7 +49,7 @@ export interface DetectedFramework {
 }
 
 export interface DetectedLanguage {
-  name: 'JavaScript/TypeScript' | 'Java' | 'Python';
+  name: 'JavaScript/TypeScript' | 'Java' | 'Python' | 'C#';
   confidence: 'high' | 'medium' | 'low';
   evidence: {
     files: string[]; // Files that indicate this language
@@ -71,7 +71,7 @@ export interface AnchorResult {
   platform: 'Percy' | 'Applitools' | 'Sauce Labs Visual' | 'unknown';
   magicStrings: string[]; // e.g., ['percySnapshot', 'percyScreenshot']
   framework?: 'Cypress' | 'Selenium' | 'Playwright' | 'Storybook' | 'Robot Framework' | 'Appium';
-  language?: 'JavaScript/TypeScript' | 'Java' | 'Python';
+  language?: 'JavaScript/TypeScript' | 'Java' | 'Python' | 'C#';
   evidence?: {
     source: string; // e.g., 'package.json', 'pom.xml', 'requirements.txt'
     match: string;  // e.g., '@percy/cli', 'eyes-selenium-java5'
@@ -94,7 +94,7 @@ export interface DetectionEvidence {
 export interface DetectionResult {
   platform: 'Percy' | 'Applitools' | 'Sauce Labs Visual';
   framework: 'Cypress' | 'Selenium' | 'Playwright' | 'Storybook' | 'Robot Framework' | 'Appium';
-  language: 'JavaScript/TypeScript' | 'Java' | 'Python';
+  language: 'JavaScript/TypeScript' | 'Java' | 'Python' | 'C#';
   testType: 'e2e' | 'storybook' | 'appium';
   files: {
     config: string[];      // Paths to config files like .percy.yml

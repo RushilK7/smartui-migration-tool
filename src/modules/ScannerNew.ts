@@ -74,6 +74,10 @@ export class Scanner {
     const pythonResult = await this.analyzePythonDependencies();
     if (pythonResult) detectedPlatforms.push(pythonResult);
 
+    // Check C# projects
+    const csharpResult = await this.analyzeCSharpDependencies();
+    if (csharpResult) detectedPlatforms.push(csharpResult);
+
     if (detectedPlatforms.length === 0) {
       return null;
     }
@@ -181,6 +185,124 @@ export class Scanner {
     }
 
     return null;
+  }
+
+  /**
+   * Analyze C# dependencies in .csproj files
+   */
+  private async analyzeCSharpDependencies(): Promise<DetectionResult | null> {
+    const csprojFiles = await fg(['**/*.csproj'], {
+      cwd: this.projectPath,
+      ignore: this.ignorePatterns
+    });
+
+
+    if (csprojFiles.length === 0) {
+      return null;
+    }
+
+    for (const csprojFile of csprojFiles) {
+      try {
+        const csprojPath = path.join(this.projectPath, csprojFile);
+        const csprojContent = await fs.readFile(csprojPath, 'utf-8');
+        
+        // Parse XML content
+        const parser = new XMLParser({
+          ignoreAttributes: false,
+          attributeNamePrefix: '@_'
+        });
+        const csprojXml = parser.parse(csprojContent);
+        
+        // Extract PackageReference elements
+        const packageReferences = this.extractPackageReferences(csprojXml);
+        
+        // Check for Applitools dependencies
+        const hasApplitools = packageReferences.some(pkg => 
+          (pkg.include || pkg['@_Include']) && (
+            (pkg.include || pkg['@_Include']).includes('Applitools') ||
+            (pkg.include || pkg['@_Include']).includes('Eyes') ||
+            (pkg.include || pkg['@_Include']).includes('Applitools.Eyes')
+          )
+        );
+        
+        if (hasApplitools) {
+          // Determine framework based on other dependencies
+          let framework: 'Selenium' | 'Playwright' = 'Selenium';
+          if (packageReferences.some(pkg => (pkg.include || pkg['@_Include']) && (
+            (pkg.include || pkg['@_Include']).includes('Microsoft.Playwright') ||
+            (pkg.include || pkg['@_Include']).includes('Eyes.Playwright') ||
+            (pkg.include || pkg['@_Include']).includes('Playwright')
+          ))) {
+            framework = 'Playwright';
+          } else if (packageReferences.some(pkg => (pkg.include || pkg['@_Include']) && (pkg.include || pkg['@_Include']).includes('WebDriver'))) {
+            framework = 'Selenium';
+          }
+          
+          return await this.createDetectionResult('Applitools', framework, 'C#');
+        }
+
+        // Check for Percy dependencies
+        if (packageReferences.some(pkg => 
+          (pkg.include || pkg['@_Include']) && (
+            (pkg.include || pkg['@_Include']).includes('Percy') ||
+            (pkg.include || pkg['@_Include']).includes('percy')
+          )
+        )) {
+          let framework: 'Selenium' | 'Playwright' = 'Selenium';
+          if (packageReferences.some(pkg => (pkg.include || pkg['@_Include']) && (
+            (pkg.include || pkg['@_Include']).includes('Microsoft.Playwright') ||
+            (pkg.include || pkg['@_Include']).includes('Eyes.Playwright') ||
+            (pkg.include || pkg['@_Include']).includes('Playwright')
+          ))) {
+            framework = 'Playwright';
+          }
+          
+          return await this.createDetectionResult('Percy', framework, 'C#');
+        }
+
+        // Check for Sauce Labs dependencies
+        if (packageReferences.some(pkg => 
+          (pkg.include || pkg['@_Include']) && (
+            (pkg.include || pkg['@_Include']).includes('SauceLabs') ||
+            (pkg.include || pkg['@_Include']).includes('Sauce')
+          )
+        )) {
+          return await this.createDetectionResult('Sauce Labs Visual', 'Selenium', 'C#');
+        }
+
+      } catch (error) {
+        // Skip invalid .csproj files
+        continue;
+      }
+    }
+
+    return null;
+  }
+
+  /**
+   * Extract PackageReference elements from .csproj XML
+   */
+  private extractPackageReferences(csprojXml: any): any[] {
+    const references: any[] = [];
+    
+    // Handle different .csproj structures
+    if (csprojXml.Project && csprojXml.Project.ItemGroup) {
+      const itemGroups = Array.isArray(csprojXml.Project.ItemGroup) 
+        ? csprojXml.Project.ItemGroup 
+        : [csprojXml.Project.ItemGroup];
+      
+      for (const itemGroup of itemGroups) {
+        if (itemGroup.PackageReference) {
+          const packageRefs = Array.isArray(itemGroup.PackageReference)
+            ? itemGroup.PackageReference
+            : [itemGroup.PackageReference];
+          
+          references.push(...packageRefs);
+        }
+      }
+    }
+    
+    return references;
   }
 
   /**
@@ -335,9 +457,9 @@ export class Scanner {
       case 'Cypress':
         return ['cypress/**/*.js', 'cypress/**/*.ts', 'cypress/**/*.spec.js', 'cypress/**/*.spec.ts'];
       case 'Playwright':
-        return ['tests/**/*.js', 'tests/**/*.ts', 'tests/**/*.spec.js', 'tests/**/*.spec.ts', 'e2e/**/*.js', 'e2e/**/*.ts'];
+        return ['tests/**/*.js', 'tests/**/*.ts', 'tests/**/*.spec.js', 'tests/**/*.spec.ts', 'e2e/**/*.js', 'e2e/**/*.ts', 'tests/**/*.cs', 'e2e/**/*.cs', '**/*Test.cs', '**/*Tests.cs'];
       case 'Selenium':
-        return ['src/**/*.java', 'test/**/*.java', '**/*Test.java', '**/*Tests.java'];
+        return ['src/**/*.java', 'test/**/*.java', '**/*Test.java', '**/*Tests.java', 'src/**/*.cs', 'test/**/*.cs', '**/*Test.cs', '**/*Tests.cs'];
       case 'Storybook':
         return ['.storybook/**/*.js', '.storybook/**/*.ts', 'stories/**/*.js', 'stories/**/*.ts'];
       case 'Robot Framework':

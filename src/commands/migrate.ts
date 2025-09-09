@@ -2,7 +2,7 @@ import { Command, Flags, Args } from '@oclif/core';
 import chalk from 'chalk';
 import { promises as fs } from 'fs';
 import { CLIUtils } from '../utils/CLIUtils';
-import { Scanner } from '../modules/Scanner';
+import { Scanner } from '../modules/ScannerNew';
 import { ConfigTransformer } from '../modules/ConfigTransformer';
 import { CodeTransformer } from '../modules/CodeTransformer';
 import { JavaCodeTransformer } from '../modules/JavaCodeTransformer';
@@ -13,10 +13,16 @@ import { AnalysisReporter } from '../modules/AnalysisReporter';
 import { ReportRenderer } from '../modules/ReportRenderer';
 import { FileSelector } from '../modules/FileSelector';
 import { Reporter } from '../modules/Reporter';
-import { DetectionResult, FinalReportData, TransformationPreview, MultiDetectionResult } from '../types';
+import { DetectionResult, FinalReportData, TransformationPreview, MultiDetectionResult, DetectedPlatform, DetectedFramework, DetectedLanguage } from '../types';
 import { ChangePreviewer } from '../modules/ChangePreviewer';
 import { TransformationManager } from '../modules/TransformationManager';
 import { MultiDetectionSelector } from '../modules/MultiDetectionSelector';
+import { ReportGenerator } from '../modules/ReportGenerator';
+import { SmartUIConfigGenerator } from '../modules/SmartUIConfigGenerator';
+import { EnvironmentManager } from '../modules/EnvironmentManager';
+import { PackageInstaller } from '../modules/PackageInstaller';
+import { MigrationValidator } from '../modules/MigrationValidator';
+import { RollbackManager } from '../modules/RollbackManager';
 import { logger } from '../utils/Logger';
 import path from 'path';
 
@@ -81,6 +87,53 @@ export default class Migrate extends Command {
       description: 'Fully automated mode - no user interaction required (migrate all files automatically)',
       default: false,
     }),
+    'report-format': Flags.string({
+      char: 'r',
+      description: 'Generate comprehensive migration report in specified format (json, markdown, html)',
+      options: ['json', 'markdown', 'html'],
+      default: 'markdown',
+    }),
+    'report-output': Flags.string({
+      description: 'Output path for migration report (default: migration-report-{timestamp}.{format})',
+    }),
+    'auto-setup': Flags.boolean({
+      char: 's',
+      description: 'Automatically setup SmartUI configuration and install packages',
+      default: false,
+    }),
+    'ci-type': Flags.string({
+      description: 'Generate CI/CD configuration for specified type (github-actions, jenkins, gitlab-ci, azure-devops, circleci, travis-ci)',
+      options: ['github-actions', 'jenkins', 'gitlab-ci', 'azure-devops', 'circleci', 'travis-ci'],
+    }),
+    'validate-setup': Flags.boolean({
+      char: 'v',
+      description: 'Validate SmartUI setup after migration',
+      default: false,
+    }),
+    'create-checkpoint': Flags.boolean({
+      description: 'Create rollback checkpoint before migration',
+      default: true,
+    }),
+    'run-tests': Flags.boolean({
+      description: 'Run migrated tests after migration',
+      default: false,
+    }),
+    'test-connectivity': Flags.boolean({
+      description: 'Test SmartUI connectivity after migration',
+      default: false,
+    }),
+    'rollback': Flags.string({
+      description: 'Rollback to specific checkpoint (use checkpoint ID)',
+    }),
+    'list-checkpoints': Flags.boolean({
+      description: 'List available rollback checkpoints',
+      default: false,
+    }),
+    'complete': Flags.boolean({
+      char: 'c',
+      description: 'Complete migration with all features enabled (auto-setup, validation, testing, connectivity)',
+      default: false,
+    }),
   };
 
   static override args = {
@@ -94,12 +147,55 @@ export default class Migrate extends Command {
     const { args, flags } = await this.parse();
 
     try {
-      // Check if auto mode is requested
+      // Handle rollback and checkpoint operations
+      if (flags['rollback']) {
+        await this.handleRollback(flags['project-path'] || process.cwd(), flags['rollback'], flags['verbose'] || false);
+        return;
+      }
+
+      if (flags['list-checkpoints']) {
+        await this.handleListCheckpoints(flags['project-path'] || process.cwd(), flags['verbose'] || false);
+        return;
+      }
+
+      // Check if complete mode is requested
+      const completeMode = flags['complete'] as boolean;
       const autoMode = flags['auto'] as boolean;
       const interactiveMode = flags['interactive'] as boolean;
       let finalFlags = flags;
       
-      if (autoMode) {
+      if (completeMode) {
+        // Set all features for complete migration
+        finalFlags = {
+          ...flags,
+          'auto': true,
+          'backup': true,
+          'dry-run': false,
+          'verbose': true,
+          'yes': true,
+          'preview-only': false,
+          'confirm-each': false,
+          'auto-setup': true,
+          'validate-setup': true,
+          'run-tests': true,
+          'test-connectivity': true,
+          'create-checkpoint': true,
+          'report-format': 'html'
+        };
+        
+        console.log(chalk.blue.bold('\n🚀 COMPLETE MIGRATION MODE ENABLED'));
+        console.log(chalk.gray('='.repeat(60)));
+        console.log(chalk.white('Full-featured migration with all capabilities:'));
+        console.log(chalk.white('  • Auto-detection and transformation'));
+        console.log(chalk.white('  • SmartUI configuration generation'));
+        console.log(chalk.white('  • Package installation'));
+        console.log(chalk.white('  • CI/CD setup'));
+        console.log(chalk.white('  • Validation and testing'));
+        console.log(chalk.white('  • Connectivity testing'));
+        console.log(chalk.white('  • Rollback checkpoint creation'));
+        console.log(chalk.white('  • Comprehensive reporting'));
+        console.log(chalk.gray('='.repeat(60)));
+      } else if (autoMode) {
         // Set smart defaults for fully automated mode
         finalFlags = {
           ...flags,
@@ -161,7 +257,7 @@ export default class Migrate extends Command {
       await CLIUtils.showSpinner('Initializing migration process...');
 
       // Initialize modules (projectPath already resolved above)
-      const scanner = new Scanner(projectPath, verbose);
+      const scanner = new Scanner(projectPath);
       const configTransformer = new ConfigTransformer(projectPath);
       const codeTransformer = new CodeTransformer(projectPath);
       const javaCodeTransformer = new JavaCodeTransformer(projectPath);
@@ -190,16 +286,20 @@ export default class Migrate extends Command {
           logger.verbose('Multiple platforms detected, switching to multi-detection mode');
           CLIUtils.showInfo('Multiple visual testing setups detected. Let me show you what was found...');
           
-          const multiDetectionResult: MultiDetectionResult = await scanner.scanMultiDetection();
+          // For now, we'll use the first detected platform
+          // TODO: Implement proper multi-detection selection
+          detectionResult = await scanner.scan();
           
-          // Display detection matrix
-          MultiDetectionSelector.displayDetectionMatrix(multiDetectionResult);
-          
-          // Get user selection
-          const userSelection = await MultiDetectionSelector.getUserSelection(multiDetectionResult);
-          
-          // Confirm selection
-          const confirmed = await MultiDetectionSelector.confirmSelection(userSelection);
+          // Confirm the detected platform
+          const inquirer = await import('inquirer');
+          const { confirmed } = await inquirer.default.prompt([
+            {
+              type: 'confirm',
+              name: 'confirmed',
+              message: `Detected ${detectionResult.platform} ${detectionResult.framework} project in ${detectionResult.language}. Proceed with migration?`,
+              default: true
+            }
+          ]);
           
           if (!confirmed) {
             CLIUtils.showWarning('Migration cancelled by user');
@@ -207,8 +307,6 @@ export default class Migrate extends Command {
             return;
           }
           
-          // Convert selection to DetectionResult format
-          detectionResult = this.convertSelectionToDetectionResult(userSelection, multiDetectionResult);
           CLIUtils.showSuccess('Selection confirmed, proceeding with migration');
         } else {
           throw error;
@@ -387,6 +485,203 @@ export default class Migrate extends Command {
       
       CLIUtils.showSuccess('Migration report generated');
 
+      // Generate comprehensive migration report if requested
+      if (flags['report-format']) {
+        try {
+          const transformationManager = new TransformationManager(projectPath, verbose, selectedFiles);
+          const changeTracker = transformationManager.getChangeTracker();
+          transformationManager.completeMigration();
+          
+          const migrationReport = changeTracker.generateReport(
+            projectPath,
+            detectionResult.platform,
+            detectionResult.framework,
+            detectionResult.language
+          );
+          
+          const reportGenerator = new ReportGenerator(changeTracker, verbose);
+          const reportOptions = {
+            format: flags['report-format'] as 'json' | 'markdown' | 'html',
+            outputPath: flags['report-output'],
+            includeDetails: true,
+            includeCodeDiffs: true,
+            includeRecommendations: true,
+            includeValidationResults: true
+          };
+          
+          const reportResult = await reportGenerator.generateReport(migrationReport, reportOptions);
+          
+          if (reportResult.success) {
+            console.log(chalk.green(`📊 Comprehensive migration report generated: ${reportResult.outputPath}`));
+            console.log(chalk.gray(`   Format: ${reportResult.format.toUpperCase()}, Size: ${Math.round(reportResult.size / 1024)}KB`));
+          } else {
+            console.log(chalk.yellow(`⚠️  Failed to generate comprehensive report: ${reportResult.error}`));
+          }
+        } catch (error) {
+          console.log(chalk.yellow(`⚠️  Failed to generate comprehensive report: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
+      }
+
+      // Create checkpoint before migration if requested
+      let checkpointId: string | undefined;
+      if (flags['create-checkpoint']) {
+        try {
+          console.log(chalk.blue('💾 Creating rollback checkpoint...'));
+          const rollbackManager = new RollbackManager(projectPath, verbose);
+          const checkpoint = await rollbackManager.createCheckpoint(
+            projectPath,
+            `Migration checkpoint - ${detectionResult.platform} to SmartUI`,
+            {
+              platform: detectionResult.platform,
+              framework: detectionResult.framework,
+              language: detectionResult.language
+            }
+          );
+          checkpointId = checkpoint.id;
+          console.log(chalk.green(`  ✅ Checkpoint created: ${checkpointId}`));
+        } catch (error) {
+          console.log(chalk.yellow(`⚠️  Failed to create checkpoint: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
+      }
+
+      // Zero-configuration SmartUI setup
+      if (finalFlags['auto-setup']) {
+        try {
+          console.log(chalk.blue('\n🔧 Setting up SmartUI configuration...'));
+          
+          // Generate SmartUI configuration
+          const configGenerator = new SmartUIConfigGenerator(projectPath, verbose);
+          const smartUIConfig = await configGenerator.generateSmartUIConfig(
+            'web', // Default project type
+            detectionResult.framework,
+            detectionResult.language
+          );
+          
+          console.log(chalk.green('  ✅ Generated .smartui.json configuration'));
+          
+          // Install SmartUI packages
+          console.log(chalk.blue('📦 Installing SmartUI packages...'));
+          const packageInstaller = new PackageInstaller(projectPath, verbose);
+          const installResult = await packageInstaller.installSmartUIPackages(
+            detectionResult.framework,
+            detectionResult.language
+          );
+          
+          if (installResult.success) {
+            console.log(chalk.green(`  ✅ Installed ${installResult.packagesInstalled.length} SmartUI packages`));
+            if (installResult.packagesInstalled.length > 0) {
+              console.log(chalk.gray(`     Packages: ${installResult.packagesInstalled.join(', ')}`));
+            }
+          } else {
+            console.log(chalk.yellow(`  ⚠️  Package installation had issues: ${installResult.errors.join(', ')}`));
+          }
+          
+          // Generate environment scripts
+          console.log(chalk.blue('📝 Generating environment setup scripts...'));
+          await configGenerator.generateEnvironmentScripts();
+          console.log(chalk.green('  ✅ Generated environment setup scripts'));
+          
+          // Setup CI/CD if requested
+          if (finalFlags['ci-type']) {
+            console.log(chalk.blue(`🔧 Setting up ${finalFlags['ci-type']} configuration...`));
+            const envManager = new EnvironmentManager(projectPath, verbose);
+            await envManager.setupCIEnvironment(finalFlags['ci-type']);
+            console.log(chalk.green(`  ✅ Generated ${finalFlags['ci-type']} configuration`));
+          }
+          
+          // Validate setup if requested
+          if (finalFlags['validate-setup']) {
+            console.log(chalk.blue('🔍 Validating SmartUI setup...'));
+            const validation = await configGenerator.validateConfiguration();
+            if (validation.valid) {
+              console.log(chalk.green('  ✅ SmartUI setup validation passed'));
+            } else {
+              console.log(chalk.yellow(`  ⚠️  Validation warnings: ${validation.warnings.join(', ')}`));
+              if (validation.errors.length > 0) {
+                console.log(chalk.red(`  ❌ Validation errors: ${validation.errors.join(', ')}`));
+              }
+            }
+          }
+          
+        } catch (error) {
+          console.log(chalk.yellow(`⚠️  SmartUI setup failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
+      }
+
+      // Phase 4: Validation and Testing
+      if (finalFlags['validate-setup'] || finalFlags['run-tests'] || finalFlags['test-connectivity']) {
+        try {
+          console.log(chalk.blue('\n🔍 Running post-migration validation and testing...'));
+          
+          const validator = new MigrationValidator(projectPath, verbose);
+          
+          // Run comprehensive validation
+          if (finalFlags['validate-setup']) {
+            console.log(chalk.blue('📋 Validating migration...'));
+            const validation = await validator.validateTransformation();
+            
+            if (validation.valid) {
+              console.log(chalk.green(`  ✅ Migration validation passed (Score: ${validation.score}/100)`));
+            } else {
+              console.log(chalk.yellow(`  ⚠️  Migration validation completed with issues (Score: ${validation.score}/100)`));
+              
+              if (validation.errors.length > 0) {
+                console.log(chalk.red(`  ❌ Errors (${validation.errors.length}):`));
+                validation.errors.forEach(error => {
+                  console.log(chalk.red(`     - ${error.message}`));
+                  if (error.suggestion) {
+                    console.log(chalk.gray(`       Suggestion: ${error.suggestion}`));
+                  }
+                });
+              }
+              
+              if (validation.warnings.length > 0) {
+                console.log(chalk.yellow(`  ⚠️  Warnings (${validation.warnings.length}):`));
+                validation.warnings.forEach(warning => {
+                  console.log(chalk.yellow(`     - ${warning.message}`));
+                  if (warning.suggestion) {
+                    console.log(chalk.gray(`       Suggestion: ${warning.suggestion}`));
+                  }
+                });
+              }
+            }
+          }
+          
+          // Test SmartUI connectivity
+          if (finalFlags['test-connectivity']) {
+            console.log(chalk.blue('🌐 Testing SmartUI connectivity...'));
+            const connectivity = await validator.testSmartUIConnectivity();
+            
+            if (connectivity.connected) {
+              console.log(chalk.green(`  ✅ SmartUI connectivity test passed (${connectivity.latency}ms)`));
+            } else {
+              console.log(chalk.red(`  ❌ SmartUI connectivity test failed: ${connectivity.error}`));
+            }
+          }
+          
+          // Run migrated tests
+          if (finalFlags['run-tests']) {
+            console.log(chalk.blue('🧪 Running migrated tests...'));
+            const testResult = await validator.runMigratedTests();
+            
+            if (testResult.success) {
+              console.log(chalk.green(`  ✅ Tests passed: ${testResult.testsPassed}/${testResult.testsRun}`));
+              if (testResult.coverage) {
+                console.log(chalk.gray(`     Coverage: ${testResult.coverage.lines}% lines, ${testResult.coverage.functions}% functions`));
+              }
+            } else {
+              console.log(chalk.red(`  ❌ Tests failed: ${testResult.testsFailed}/${testResult.testsRun}`));
+              if (testResult.errors.length > 0) {
+                testResult.errors.forEach(error => console.log(chalk.red(`     - ${error}`)));
+              }
+            }
+          }
+          
+        } catch (error) {
+          console.log(chalk.yellow(`⚠️  Validation and testing failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+        }
+      }
+
       // Final success message
       console.log('\n' + '='.repeat(60));
       CLIUtils.showSuccess('Migration completed successfully!');
@@ -423,8 +718,8 @@ export default class Migrate extends Command {
       
       console.log(chalk.white('\n💡 For POC purposes, you can test the migration on a copy of your project first.'));
       console.log(chalk.white('   Once confident, run it on your real project directory.\n'));
-
-    } catch (error) {
+            
+          } catch (error) {
       CLIUtils.showError(`Migration failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       this.exit(1);
     }
@@ -660,7 +955,7 @@ export default class Migrate extends Command {
       testType = 'storybook';
     } else if (framework === 'Appium') {
       testType = 'appium';
-    } else {
+            } else {
       testType = 'e2e';
     }
 
@@ -686,5 +981,73 @@ export default class Migrate extends Command {
         }
       }
     };
+  }
+
+  /**
+   * Handle rollback to a specific checkpoint
+   */
+  private async handleRollback(projectPath: string, checkpointId: string, verbose: boolean): Promise<void> {
+    try {
+      console.log(chalk.blue(`🔄 Rolling back to checkpoint: ${checkpointId}`));
+      
+      const rollbackManager = new RollbackManager(projectPath, verbose);
+      const result = await rollbackManager.rollbackToCheckpoint(checkpointId);
+      
+      if (result.success) {
+        console.log(chalk.green(`✅ Rollback successful: ${result.message}`));
+        console.log(chalk.gray(`   Restored ${result.restoredFiles.length} files`));
+        console.log(chalk.gray(`   Duration: ${result.duration}ms`));
+        
+        if (result.errors.length > 0) {
+          console.log(chalk.yellow(`⚠️  Rollback completed with ${result.errors.length} errors:`));
+          result.errors.forEach(error => console.log(chalk.red(`   - ${error}`)));
+        }
+      } else {
+        console.log(chalk.red(`❌ Rollback failed: ${result.message}`));
+        if (result.errors.length > 0) {
+          result.errors.forEach(error => console.log(chalk.red(`   - ${error}`)));
+        }
+        this.exit(1);
+      }
+    } catch (error) {
+      console.log(chalk.red(`❌ Rollback failed: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      this.exit(1);
+    }
+  }
+
+  /**
+   * Handle listing available checkpoints
+   */
+  private async handleListCheckpoints(projectPath: string, verbose: boolean): Promise<void> {
+    try {
+      console.log(chalk.blue('📋 Available checkpoints:'));
+      
+      const rollbackManager = new RollbackManager(projectPath, verbose);
+      const checkpoints = await rollbackManager.listCheckpoints();
+      
+      if (checkpoints.length === 0) {
+        console.log(chalk.yellow('   No checkpoints found'));
+        return;
+      }
+      
+      checkpoints.forEach((checkpoint, index) => {
+        const timestamp = checkpoint.timestamp.toLocaleString();
+        const filesCount = checkpoint.metadata.filesCount;
+        const totalSize = Math.round(checkpoint.metadata.totalSize / 1024);
+        
+        console.log(chalk.white(`   ${index + 1}. ${checkpoint.id}`));
+        console.log(chalk.gray(`      Description: ${checkpoint.description}`));
+        console.log(chalk.gray(`      Created: ${timestamp}`));
+        console.log(chalk.gray(`      Files: ${filesCount}, Size: ${totalSize}KB`));
+        console.log(chalk.gray(`      Platform: ${checkpoint.metadata.platform}, Framework: ${checkpoint.metadata.framework}`));
+        console.log('');
+      });
+      
+      console.log(chalk.gray(`Use --rollback <checkpoint-id> to rollback to a specific checkpoint`));
+
+    } catch (error) {
+      console.log(chalk.red(`❌ Failed to list checkpoints: ${error instanceof Error ? error.message : 'Unknown error'}`));
+      this.exit(1);
+    }
   }
 }

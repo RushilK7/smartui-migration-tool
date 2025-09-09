@@ -243,6 +243,11 @@ export class ChangePreviewer {
             transformedContent = result.content;
             codeWarnings = result.warnings.map(w => w.message);
             snapshotCount = result.snapshotCount;
+          } else if (detectionResult.language === 'C#') {
+            const result = codeTransformer.transformCSharp(originalContent, detectionResult.platform, detectionResult.framework);
+            transformedContent = result.content;
+            codeWarnings = result.warnings.map(w => w.message);
+            snapshotCount = result.snapshotCount;
           } else if (detectionResult.language === 'JavaScript/TypeScript') {
             if (detectionResult.platform === 'Percy') {
               const result = codeTransformer.transformPercy(originalContent);
@@ -326,14 +331,26 @@ export class ChangePreviewer {
             transformedContent = result.content;
             executionWarnings = result.warnings.map(w => w.message);
           } else {
-            // Use ConfigTransformer for complete package.json transformation (dependencies + scripts)
-            const configTransformer = new ConfigTransformer(this.projectPath);
-            // Create a temporary package.json to test transformation
-            const tempPackageJson = JSON.parse(originalContent);
-            configTransformer.transformDependencies(tempPackageJson, detectionResult);
-            configTransformer.transformScripts(tempPackageJson, detectionResult);
-            transformedContent = JSON.stringify(tempPackageJson, null, 2);
-            executionWarnings = [];
+            // Check if this is a package.json file or pom.xml file
+            if (packageFile === 'package.json') {
+              // Use ConfigTransformer for complete package.json transformation (dependencies + scripts)
+              const configTransformer = new ConfigTransformer(this.projectPath);
+              // Create a temporary package.json to test transformation
+              const tempPackageJson = JSON.parse(originalContent);
+              configTransformer.transformDependencies(tempPackageJson, detectionResult);
+              configTransformer.transformScripts(tempPackageJson, detectionResult);
+              transformedContent = JSON.stringify(tempPackageJson, null, 2);
+              executionWarnings = [];
+            } else if (packageFile === 'pom.xml') {
+              // For POM.xml files, we don't need to preview execution changes
+              // The POM.xml transformation is handled in the config transformation phase
+              transformedContent = originalContent; // No changes for execution preview
+              executionWarnings = [];
+            } else {
+              // For other package files, skip transformation
+              transformedContent = originalContent;
+              executionWarnings = [];
+            }
           }
 
           const changeDetails = this.generateDiff(originalContent, transformedContent, 'Package.json script transformation');

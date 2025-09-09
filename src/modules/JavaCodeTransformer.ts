@@ -111,7 +111,9 @@ export class JavaCodeTransformer {
       case 'Percy':
         return {
           'io.percy.selenium.Percy': 'io.github.lambdatest.SmartUISnapshot',
-          'io.percy.selenium': 'io.github.lambdatest.SmartUISnapshot'
+          'io.percy.selenium': 'io.github.lambdatest.SmartUISnapshot',
+          'io.percy.playwright.Percy': 'io.github.lambdatest.SmartUISnapshot',
+          'io.percy.playwright': 'io.github.lambdatest.SmartUISnapshot'
         };
       case 'Applitools':
         return {
@@ -135,9 +137,22 @@ export class JavaCodeTransformer {
    * @returns The transformed code
    */
   private transformPercyMethods(sourceCode: string): string {
-    // Transform percy.snapshot("name") to SmartUISnapshot.smartuiSnapshot(driver, "name")
-    const percySnapshotRegex = /(\w+)\.snapshot\s*\(\s*"([^"]+)"\s*\)/g;
-    return sourceCode.replace(percySnapshotRegex, 'SmartUISnapshot.smartuiSnapshot(driver, "$2")');
+    let transformedCode = sourceCode;
+    
+    // Transform variable declarations: private Percy percy; -> private SmartUI smartui;
+    transformedCode = transformedCode.replace(/private\s+Percy\s+(\w+);/g, 'private SmartUI $1;');
+    transformedCode = transformedCode.replace(/Percy\s+(\w+);/g, 'SmartUI $1;');
+    
+    // Transform object instantiation: percy = new Percy(page); -> smartui = new SmartUI(page);
+    transformedCode = transformedCode.replace(/(\w+)\s*=\s*new\s+Percy\s*\(([^)]+)\);/g, '$1 = new SmartUI($2);');
+    
+    // Transform method calls: percy.snapshot("name") -> SmartUISnapshot.smartuiSnapshot(driver, "name")
+    transformedCode = transformedCode.replace(/(\w+)\.snapshot\s*\(\s*"([^"]+)"\s*\)/g, 'SmartUISnapshot.smartuiSnapshot(driver, "$2")');
+    
+    // Transform method calls with additional parameters: percy.snapshot("name", options) -> SmartUISnapshot.smartuiSnapshot(driver, "name", options)
+    transformedCode = transformedCode.replace(/(\w+)\.snapshot\s*\(\s*"([^"]+)"\s*,\s*([^)]+)\s*\)/g, 'SmartUISnapshot.smartuiSnapshot(driver, "$2", $3)');
+    
+    return transformedCode;
   }
 
   /**
@@ -402,7 +417,9 @@ class JavaTransformationVisitor {
       case 'Percy':
         return {
           'io.percy.selenium.Percy': 'io.github.lambdatest.SmartUISnapshot',
-          'io.percy.selenium': 'io.github.lambdatest.SmartUISnapshot'
+          'io.percy.selenium': 'io.github.lambdatest.SmartUISnapshot',
+          'io.percy.playwright.Percy': 'io.github.lambdatest.SmartUISnapshot',
+          'io.percy.playwright': 'io.github.lambdatest.SmartUISnapshot'
         };
       case 'Applitools':
         return {

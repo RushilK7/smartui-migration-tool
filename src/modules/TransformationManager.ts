@@ -5,6 +5,8 @@ import { DetectionResult, ChangePreview, TransformationPreview } from '../types'
 import { logger } from '../utils/Logger';
 import { ProgressManager } from '../utils/ProgressManager';
 import { ConfigTransformer } from './ConfigTransformer';
+import { PomTransformer } from './PomTransformer';
+import { ChangeTracker } from './ChangeTracker';
 
 export interface TransformationOptions {
   createBackup: boolean;
@@ -26,11 +28,27 @@ export class TransformationManager {
   private projectPath: string;
   private verbose: boolean;
   private selectedFiles: string[];
+  private changeTracker: ChangeTracker;
 
   constructor(projectPath: string, verbose: boolean = false, selectedFiles: string[] = []) {
     this.projectPath = projectPath;
     this.verbose = verbose;
     this.selectedFiles = selectedFiles;
+    this.changeTracker = new ChangeTracker();
+  }
+
+  /**
+   * Get the change tracker instance
+   */
+  getChangeTracker(): ChangeTracker {
+    return this.changeTracker;
+  }
+
+  /**
+   * Complete migration and mark change tracking as finished
+   */
+  completeMigration(): void {
+    this.changeTracker.completeMigration();
   }
 
   /**
@@ -365,9 +383,46 @@ export class TransformationManager {
       await configTransformer.transformPackageJson(detectionResult);
       console.log(chalk.green('  ✅ Transformed package.json dependencies and scripts'));
       result.filesModified.push('package.json');
+      
+      // Track package.json changes
+      this.changeTracker.trackFileChange(
+        'package.json',
+        'MODIFY',
+        undefined, // Original content not available here
+        undefined, // New content not available here
+        'Transformed package.json dependencies and scripts for SmartUI migration',
+        undefined,
+        undefined,
+        detectionResult.platform === 'Percy' ? 1 : 0 // Estimate dependency count
+      );
     } catch (error) {
       if ((error as any).code !== 'ENOENT') { // Ignore if package.json doesn't exist
         const errorMsg = `Failed to transform package.json: ${error instanceof Error ? error.message : 'Unknown error'}`;
+        result.errors.push(errorMsg);
+        console.log(chalk.red(`  ❌ ${errorMsg}`));
+      }
+    }
+
+    // Transform .csproj files for C# projects
+    if (detectionResult.language === 'C#') {
+      try {
+        const configTransformer = new ConfigTransformer(this.projectPath);
+        await configTransformer.transformCsprojFiles(detectionResult);
+        console.log(chalk.green('  ✅ Transformed .csproj dependencies and packages'));
+        
+        // Track .csproj changes
+        this.changeTracker.trackFileChange(
+          '*.csproj',
+          'MODIFY',
+          undefined, // Original content not available here
+          undefined, // New content not available here
+          'Transformed .csproj dependencies and packages for SmartUI migration',
+          undefined,
+          undefined,
+          detectionResult.platform === 'Applitools' ? 1 : 0 // Estimate dependency count
+        );
+      } catch (error) {
+        const errorMsg = `Failed to transform .csproj files: ${error instanceof Error ? error.message : 'Unknown error'}`;
         result.errors.push(errorMsg);
         console.log(chalk.red(`  ❌ ${errorMsg}`));
       }
@@ -382,6 +437,45 @@ export class TransformationManager {
       const errorMsg = `Failed to transform CI/CD files: ${error instanceof Error ? error.message : 'Unknown error'}`;
       result.errors.push(errorMsg);
       console.log(chalk.red(`  ❌ ${errorMsg}`));
+    }
+
+    // Transform POM.xml for Java projects (always run when Java platform detected)
+    if (detectionResult.language === 'Java') {
+      try {
+        const pomTransformer = new PomTransformer(this.projectPath);
+        const pomResult = await pomTransformer.transformPomXml(detectionResult.platform as 'Percy' | 'Applitools' | 'Sauce Labs Visual');
+        
+        if (pomResult.success && pomResult.changes.length > 0) {
+          await fs.writeFile(path.join(this.projectPath, 'pom.xml'), pomResult.newContent, 'utf-8');
+          console.log(chalk.green('  ✅ Transformed POM.xml dependencies and plugins'));
+          result.filesModified.push('pom.xml');
+          logger.verbose(`POM.xml changes: ${pomResult.changes.map(c => c.description).join(', ')}`);
+          
+          // Track POM.xml changes
+          this.changeTracker.trackFileChange(
+            'pom.xml',
+            'MODIFY',
+            undefined, // Original content not available here
+            undefined, // New content not available here
+            `Transformed POM.xml: ${pomResult.changes.map(c => c.description).join(', ')}`,
+            undefined,
+            undefined,
+            pomResult.changes.length // Dependency count
+          );
+        } else if (pomResult.success) {
+          console.log(chalk.yellow('  ⚠️  No POM.xml changes needed'));
+        } else {
+          const errorMsg = `Failed to transform POM.xml: ${pomResult.error}`;
+          result.errors.push(errorMsg);
+          console.log(chalk.red(`  ❌ ${errorMsg}`));
+        }
+      } catch (error) {
+        if ((error as any).code !== 'ENOENT') { // Ignore if pom.xml doesn't exist
+          const errorMsg = `Failed to transform POM.xml: ${error instanceof Error ? error.message : 'Unknown error'}`;
+          result.errors.push(errorMsg);
+          console.log(chalk.red(`  ❌ ${errorMsg}`));
+        }
+      }
     }
 
     if (changesToProcess.length === 0) return;
@@ -461,6 +555,17 @@ export class TransformationManager {
 
         result.filesModified.push(change.filePath);
         console.log(chalk.green(`  ✅ Modified: ${change.filePath} (${change.changes.length} changes)`));
+        
+        // Track code file changes
+        this.changeTracker.trackFileChange(
+          change.filePath,
+          'MODIFY',
+          change.originalContent,
+          change.newContent,
+          `Transformed ${change.changes.length} visual testing calls to SmartUI`,
+          undefined,
+          change.changes.length // Snapshot count
+        );
         
       } catch (error) {
         const errorMsg = `Failed to transform ${change?.filePath || 'unknown file'}: ${error instanceof Error ? error.message : 'Unknown error'}`;

@@ -8,6 +8,20 @@
 
 The SmartUI Migration Tool automates the migration of your visual testing suite to LambdaTest SmartUI. Save time and effort with intelligent detection, comprehensive transformation, and detailed progress tracking.
 
+## 🆕 What's New in v1.5
+
+### **Major Enhancements**
+- ✅ **C# Support**: Full migration support for .NET projects with Applitools Playwright
+- ✅ **Zero-Configuration Setup**: Automatic SmartUI configuration and environment setup
+- ✅ **Advanced Detection**: Multi-platform detection with intelligent framework identification
+- ✅ **Comprehensive Reporting**: Detailed migration reports with rollback capabilities
+- ✅ **Enhanced CLI**: Interactive mode with progress bars and better user experience
+
+### **New Commands**
+- `smartui-migrator` - Welcome screen and quick start
+- `smartui-migrator init` - Automated migration flow
+- `smartui-migrator migrate --complete` - Full migration with all features
+
 ## 🚀 Quick Start
 
 ### 1. Install the Tool
@@ -47,6 +61,11 @@ The tool will guide you through:
 - **Selenium** (WebDriver tests)
 - **Jest** (Unit tests with snapshots)
 - **Storybook** (Component tests)
+
+### **Programming Languages**
+- **JavaScript/TypeScript** (Node.js projects)
+- **Java** (Maven/Gradle projects)
+- **C#** (.NET projects)
 
 ### **What Changes**
 - 📁 **Configuration files** (`.percy.yml`, `applitools.config.js`, etc.)

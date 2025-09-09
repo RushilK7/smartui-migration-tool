@@ -16,6 +16,60 @@ export class CodeTransformer {
   }
 
   /**
+   * Transforms C# code from various platforms to SmartUI format
+   * @param sourceCode - The source code to transform
+   * @param platform - The platform to transform from (Percy, Applitools, Sauce Labs)
+   * @param framework - The framework being used (Playwright, Selenium)
+   * @returns CodeTransformationResult - Transformation result with content, warnings, and snapshot count
+   */
+  public transformCSharp(sourceCode: string, platform: string, framework: string): CodeTransformationResult {
+    const warnings: TransformationWarning[] = [];
+    let snapshotCount = 0;
+    let transformedCode = sourceCode;
+
+    try {
+      // Transform based on platform
+      switch (platform) {
+        case 'Applitools':
+          transformedCode = this.transformApplitoolsCSharp(sourceCode, framework, warnings);
+          break;
+        case 'Percy':
+          transformedCode = this.transformPercyCSharp(sourceCode, framework, warnings);
+          break;
+        case 'Sauce Labs':
+          transformedCode = this.transformSauceLabsCSharp(sourceCode, framework, warnings);
+          break;
+        default:
+          warnings.push({
+            message: `Unsupported platform for C# transformation: ${platform}`,
+            line: 0
+          });
+      }
+
+      // Count snapshots in the transformed code
+      snapshotCount = this.countSnapshots(transformedCode);
+
+      return {
+        content: transformedCode,
+        warnings,
+        snapshotCount
+      };
+
+    } catch (error) {
+      warnings.push({
+        message: `C# transformation failed: ${error instanceof Error ? error.message : 'Unknown error'}`,
+        line: 0
+      });
+
+      return {
+        content: sourceCode,
+        warnings,
+        snapshotCount: 0
+      };
+    }
+  }
+
+  /**
    * Transforms Percy JavaScript/TypeScript code to SmartUI format
    * @param sourceCode - The source code to transform
    * @returns CodeTransformationResult - Transformation result with content, warnings, and snapshot count
@@ -65,6 +119,11 @@ export class CodeTransformer {
           if (path.node.init && t.isCallExpression(path.node.init) && 
               t.isIdentifier(path.node.init.callee, { name: 'require' })) {
             self.transformPercyRequire(path.node.init, warnings);
+          }
+          
+          // Transform variable names from percySnapshot to smartuiSnapshot
+          if (t.isIdentifier(path.node.id, { name: 'percySnapshot' })) {
+            path.node.id.name = 'smartuiSnapshot';
           }
         }
       });
@@ -341,6 +400,11 @@ export class CodeTransformer {
               self.transformEyesCheckToSmartUISnapshot(callNode, warnings, framework);
               snapshotCountRef.count++;
             }
+          }
+          
+          // Transform variable names from eyes to smartui
+          if (t.isIdentifier(path.node.id, { name: 'eyes' })) {
+            path.node.id.name = 'smartui';
           }
         }
       });
@@ -786,6 +850,11 @@ export class CodeTransformer {
             self.transformSauceVisualCheckToSmartUISnapshot(path.node.init, warnings);
             snapshotCountRef.count++;
           }
+          
+          // Transform variable names from sauce to smartui
+          if (t.isIdentifier(path.node.id, { name: 'sauce' })) {
+            path.node.id.name = 'smartui';
+          }
         }
       });
       
@@ -1025,5 +1094,162 @@ export class CodeTransformer {
     }
     
     return t.callExpression(t.identifier('smartuiSnapshot'), args);
+  }
+
+  // C# transformation methods
+
+  /**
+   * Transform Applitools C# code to SmartUI
+   */
+  private transformApplitoolsCSharp(sourceCode: string, framework: string, warnings: TransformationWarning[]): string {
+    let transformedCode = sourceCode;
+
+    // Transform using statements
+    transformedCode = transformedCode.replace(
+      /using\s+Applitools[^;]*;/g,
+      'using LambdaTest.SmartUI;'
+    );
+
+    // Transform Eyes class declarations (private Eyes _eyes;)
+    transformedCode = transformedCode.replace(
+      /private\s+Eyes\s+_eyes;/g,
+      'private SmartUI _eyes;'
+    );
+
+    // Transform Eyes variable declarations
+    transformedCode = transformedCode.replace(
+      /Eyes\s+_eyes\s*=/g,
+      'SmartUI _eyes ='
+    );
+
+    // Transform eyes initialization
+    transformedCode = transformedCode.replace(
+      /_eyes\s*=\s*new\s+Eyes\(\);/g,
+      '_eyes = new SmartUI();'
+    );
+
+    // Transform eyes.OpenAsync() calls
+    transformedCode = transformedCode.replace(
+      /await\s+_eyes\.OpenAsync\([^)]+\);/g,
+      '// SmartUI initialization handled automatically'
+    );
+
+    // Transform eyes.Check() calls to SmartUI snapshots
+    transformedCode = transformedCode.replace(
+      /_eyes\.Check\(Target\.Window\(\)\.Fully\(\)\.WithName\(["']([^"']+)["']\)\);/g,
+      (match, snapshotName) => {
+        if (framework === 'Playwright') {
+          return `SmartUISnapshot.SmartUISnapshot(_page, "${snapshotName}");`;
+        } else {
+          return `SmartUISnapshot.SmartUISnapshot(_page, "${snapshotName}");`;
+        }
+      }
+    );
+
+    // Transform eyes.CloseAsync() calls
+    transformedCode = transformedCode.replace(
+      /await\s+_eyes\.CloseAsync\(\);/g,
+      '// SmartUI cleanup handled automatically'
+    );
+
+    return transformedCode;
+  }
+
+  /**
+   * Transform Percy C# code to SmartUI
+   */
+  private transformPercyCSharp(sourceCode: string, framework: string, warnings: TransformationWarning[]): string {
+    let transformedCode = sourceCode;
+
+    // Transform using statements
+    transformedCode = transformedCode.replace(
+      /using\s+Percy[^;]*;/g,
+      'using LambdaTest.SmartUI;'
+    );
+
+    // Transform percy.snapshot() calls
+    transformedCode = transformedCode.replace(
+      /percy\.snapshot\(["']([^"']+)["']\)/g,
+      (match, snapshotName) => {
+        if (framework === 'Playwright') {
+          return `SmartUISnapshot.SmartUISnapshot(driver, "${snapshotName}");`;
+        } else {
+          return `SmartUISnapshot.SmartUISnapshot(driver, "${snapshotName}");`;
+        }
+      }
+    );
+
+    // Transform Percy.snapshot() calls
+    transformedCode = transformedCode.replace(
+      /Percy\.snapshot\(["']([^"']+)["']\)/g,
+      (match, snapshotName) => {
+        if (framework === 'Playwright') {
+          return `SmartUISnapshot.SmartUISnapshot(driver, "${snapshotName}");`;
+        } else {
+          return `SmartUISnapshot.SmartUISnapshot(driver, "${snapshotName}");`;
+        }
+      }
+    );
+
+    return transformedCode;
+  }
+
+  /**
+   * Transform Sauce Labs C# code to SmartUI
+   */
+  private transformSauceLabsCSharp(sourceCode: string, framework: string, warnings: TransformationWarning[]): string {
+    let transformedCode = sourceCode;
+
+    // Transform using statements
+    transformedCode = transformedCode.replace(
+      /using\s+SauceLabs[^;]*;/g,
+      'using LambdaTest.SmartUI;'
+    );
+
+    // Transform sauce.screenshot() calls
+    transformedCode = transformedCode.replace(
+      /sauce\.screenshot\(["']([^"']+)["']\)/g,
+      (match, snapshotName) => {
+        if (framework === 'Playwright') {
+          return `SmartUISnapshot.SmartUISnapshot(driver, "${snapshotName}");`;
+        } else {
+          return `SmartUISnapshot.SmartUISnapshot(driver, "${snapshotName}");`;
+        }
+      }
+    );
+
+    // Transform SauceLabs.screenshot() calls
+    transformedCode = transformedCode.replace(
+      /SauceLabs\.screenshot\(["']([^"']+)["']\)/g,
+      (match, snapshotName) => {
+        if (framework === 'Playwright') {
+          return `SmartUISnapshot.SmartUISnapshot(driver, "${snapshotName}");`;
+        } else {
+          return `SmartUISnapshot.SmartUISnapshot(driver, "${snapshotName}");`;
+        }
+      }
+    );
+
+    return transformedCode;
+  }
+
+  /**
+   * Count snapshots in transformed code
+   */
+  private countSnapshots(code: string): number {
+    const snapshotPatterns = [
+      /SmartUISnapshot\.SmartUISnapshot\(/g,
+      /smartuiSnapshot\(/g
+    ];
+
+    let count = 0;
+    for (const pattern of snapshotPatterns) {
+      const matches = code.match(pattern);
+      if (matches) {
+        count += matches.length;
+      }
+    }
+
+    return count;
   }
 }
