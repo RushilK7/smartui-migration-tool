@@ -32,6 +32,7 @@ import path from 'path';
  */
 export default class Migrate extends Command {
   static override description = 'Migrate your visual testing suite to LambdaTest SmartUI';
+  static override hidden = true;
 
   static override examples = [
     '<%= config.bin %> <%= command.id %>',

@@ -64,7 +64,7 @@ export default class Help extends Command {
     console.log(chalk.green.bold('🚀 AVAILABLE COMMANDS:\n'));
     
     console.log(chalk.cyan('  smartui-migrator'));
-    console.log(chalk.gray('    Show welcome screen with recommended usage and ASCII logo'));
+    console.log(chalk.gray('    Show SmartUI Migration Tool information and usage'));
     console.log(chalk.gray('    This is the default command when no arguments are provided\n'));
 
     console.log(chalk.cyan('  smartui-migrator init [path]'));
