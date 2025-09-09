@@ -2,6 +2,7 @@ import { Command, Flags, Args } from '@oclif/core';
 import chalk from 'chalk';
 import path from 'path';
 import { promises as fs } from 'fs';
+import figlet from 'figlet';
 import Migrate from './migrate';
 
 export default class Init extends Command {
@@ -62,8 +63,13 @@ export default class Init extends Command {
       this.error(chalk.red(`❌ Path "${projectPath}" does not exist`));
     }
 
-    // Show welcome message
-    console.log(chalk.cyan.bold('\n🚀 SmartUI Migration Tool - Init Mode\n'));
+    // Display ASCII logo
+    console.log(chalk.cyan.bold(figlet.textSync('SmartUI', { 
+      font: 'ANSI Shadow',
+      horizontalLayout: 'fitted',
+      verticalLayout: 'fitted'
+    })));
+    console.log(chalk.cyan.bold('Migration Tool - Init Mode\n'));
     console.log(chalk.white(`📁 Project Directory: ${chalk.green(projectPath)}`));
     
     if (flags.auto) {
@@ -112,14 +118,32 @@ export default class Init extends Command {
     console.log(chalk.green.bold('🚀 Starting migration process...\n'));
     
     try {
-      // For now, just show a message that init is working
-      console.log(chalk.green('✅ Init command is working!'));
-      console.log(chalk.cyan('💡 The migration functionality will be integrated in the next update.'));
-      console.log(chalk.gray(`   Project path: ${projectPath}`));
-      console.log(chalk.gray(`   Auto mode: ${flags.auto}`));
-      console.log(chalk.gray(`   Dry run: ${flags['dry-run']}`));
-      console.log(chalk.gray(`   Backup: ${flags.backup}`));
-      console.log(chalk.gray(`   Verbose: ${flags.verbose}`));
+      // Use the migrate command functionality
+      console.log(chalk.cyan('🔍 Starting migration process...'));
+      
+      // Import the migrate command and run it directly
+      const { execSync } = await import('child_process');
+      
+      // Build the command arguments
+      const args = [
+        'migrate',
+        '--project-path', projectPath
+      ];
+      
+      if (flags['dry-run']) args.push('--dry-run');
+      if (flags.backup) args.push('--backup');
+      if (flags.verbose) args.push('--verbose');
+      if (flags.auto) args.push('--yes');
+      if (!flags.auto) args.push('--interactive');
+      args.push('--complete');
+      
+      // Run the migration command
+      const result = execSync(`npx smartui-migrator ${args.join(' ')}`, {
+        cwd: process.cwd(),
+        stdio: 'inherit'
+      });
+      
+      console.log(chalk.green('\n✅ Migration completed successfully!'));
       
     } catch (error) {
       console.error(chalk.red('\n❌ Migration failed:'));

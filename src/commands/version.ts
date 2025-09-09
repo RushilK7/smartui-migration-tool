@@ -1,6 +1,7 @@
 import { Command, Flags } from '@oclif/core';
 import chalk from 'chalk';
 import { execSync } from 'child_process';
+import figlet from 'figlet';
 
 export default class Version extends Command {
   static override description = 'Show version information and check for updates';
@@ -18,7 +19,13 @@ export default class Version extends Command {
     const { flags } = await this.parse(Version);
     const packageJson = require('../../package.json');
     
-    console.log(chalk.cyan.bold('SmartUI Migration Tool'));
+    // Display ASCII logo
+    console.log(chalk.cyan.bold(figlet.textSync('SmartUI', { 
+      font: 'ANSI Shadow',
+      horizontalLayout: 'fitted',
+      verticalLayout: 'fitted'
+    })));
+    console.log(chalk.cyan.bold('Migration Tool'));
     console.log(chalk.white(`Version: ${chalk.green.bold(packageJson.version)}`));
     console.log(chalk.white(`Node.js: ${chalk.green.bold(process.version)}`));
     console.log(chalk.white(`Platform: ${chalk.green.bold(process.platform)} ${chalk.green.bold(process.arch)}`));

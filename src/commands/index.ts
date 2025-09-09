@@ -1,5 +1,4 @@
 // Export all commands
-export { default as Welcome } from './welcome';
 export { default as Help } from './help';
 export { default as Version } from './version';
 export { default as Update } from './update';

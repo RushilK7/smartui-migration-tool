@@ -89,8 +89,7 @@
     "dirname": "lib",
     "hooks": {},
     "plugins": [],
-    "topicSeparator": " ",
-    "single": false
+    "topicSeparator": " "
   },
   "pkg": {
     "scripts": "lib/**/*.js",
