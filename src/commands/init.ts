@@ -118,32 +118,104 @@ export default class Init extends Command {
     console.log(chalk.green.bold('🚀 Starting migration process...\n'));
     
     try {
-      // Use the migrate command functionality
+      // Import migration modules directly
       console.log(chalk.cyan('🔍 Starting migration process...'));
       
-      // Import the migrate command and run it directly
-      const { execSync } = await import('child_process');
+      const { Scanner } = await import('../modules/ScannerNew');
+      const { ChangePreviewer } = await import('../modules/ChangePreviewer');
+      const { TransformationManager } = await import('../modules/TransformationManager');
+      const { ReportGenerator } = await import('../modules/ReportGenerator');
+      const { ChangeTracker } = await import('../modules/ChangeTracker');
+      const { CLIUtils } = await import('../utils/CLIUtils');
       
-      // Build the command arguments
-      const args = [
-        'migrate',
-        '--project-path', projectPath
-      ];
+      // Initialize modules
+      const scanner = new Scanner(projectPath);
+      const changePreviewer = new ChangePreviewer(projectPath, flags.verbose);
+      const transformationManager = new TransformationManager(projectPath);
+      const changeTracker = new ChangeTracker();
+      const reportGenerator = new ReportGenerator(changeTracker);
       
-      if (flags['dry-run']) args.push('--dry-run');
-      if (flags.backup) args.push('--backup');
-      if (flags.verbose) args.push('--verbose');
-      if (flags.auto) args.push('--yes');
-      if (!flags.auto) args.push('--interactive');
-      args.push('--complete');
+      // Step 1: Scan project
+      console.log(chalk.cyan('🔍 Scanning project for visual testing frameworks...'));
+      const detectionResult = await scanner.scan();
       
-      // Run the migration command
-      const result = execSync(`npx smartui-migrator ${args.join(' ')}`, {
-        cwd: process.cwd(),
-        stdio: 'inherit'
+      if (!detectionResult) {
+        throw new Error('Could not detect a supported visual testing platform. Please run this tool from the root of your project.');
+      }
+      
+      console.log(chalk.green(`✅ Detected: ${detectionResult.platform} ${detectionResult.framework} project in ${detectionResult.language}`));
+      
+      // Step 2: Generate preview
+      console.log(chalk.cyan('\n📋 Generating transformation preview...'));
+      const preview = await changePreviewer.generatePreview(detectionResult);
+      
+      // Step 3: Execute transformation
+      console.log(chalk.cyan('\n🔄 Executing transformation...'));
+      const transformationResult = await transformationManager.executeTransformation(
+        detectionResult,
+        preview,
+        {
+          dryRun: flags['dry-run'],
+          createBackup: flags.backup,
+          confirmEachFile: false,
+          yes: flags.auto
+        }
+      );
+      
+      // Step 4: Generate report
+      console.log(chalk.cyan('\n📊 Generating migration report...'));
+      const reportData = {
+        detectionResult,
+        preview,
+        transformationResult,
+        projectPath,
+        timestamp: new Date().toISOString(),
+        summary: {
+          totalFiles: transformationResult.filesModified.length,
+          filesModified: transformationResult.filesModified.length,
+          filesCreated: 0,
+          filesDeleted: 0,
+          snapshotsMigrated: 0, // Will be calculated from actual changes
+          warnings: preview.codeChanges.reduce((sum, change) => sum + change.warnings.length, 0),
+          errors: 0,
+          duration: 0,
+          dependenciesChanged: 0,
+          scriptsChanged: 0,
+          validationErrors: 0,
+          validationWarnings: 0,
+          environmentChanges: 0,
+          migrationTime: 0,
+          successRate: 100
+        },
+        fileChanges: [],
+        dependencyChanges: [],
+        scriptChanges: [],
+        environmentChanges: [],
+        codeChanges: preview.codeChanges,
+        executionChanges: preview.executionChanges,
+        configChanges: preview.configChanges,
+        validationResults: [],
+        recommendations: [],
+        metadata: {
+          toolVersion: '1.5.1',
+          migrationType: 'init',
+          timestamp: new Date().toISOString(),
+          migrationDate: new Date(),
+          projectPath: projectPath,
+          platform: detectionResult.platform,
+          framework: detectionResult.framework,
+          language: detectionResult.language,
+          totalChanges: transformationResult.filesModified.length
+        }
+      };
+      
+      await reportGenerator.generateReport(reportData, {
+        format: 'markdown',
+        includeDetails: true
       });
       
       console.log(chalk.green('\n✅ Migration completed successfully!'));
+      console.log(chalk.cyan('💡 Check the generated migration report for details.'));
       
     } catch (error) {
       console.error(chalk.red('\n❌ Migration failed:'));
