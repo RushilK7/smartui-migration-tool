@@ -1,120 +1,121 @@
-import { Command } from '@oclif/core';
+import { Command, Flags } from '@oclif/core';
 import chalk from 'chalk';
-import { ASCIILogos } from '../utils/ascii-logos';
 import { execSync } from 'child_process';
 import inquirer from 'inquirer';
 
 export default class Uninstall extends Command {
-  static description = 'Uninstall SmartUI Migration Tool from your system';
+  static override description = 'Uninstall SmartUI Migration Tool from your system';
 
-  static flags = {};
-
-  static args = {};
+  static override flags = {
+    help: Flags.help({ char: 'h' }),
+    force: Flags.boolean({
+      char: 'f',
+      description: 'Skip confirmation prompt',
+      default: false,
+    }),
+  };
 
   async run(): Promise<void> {
-    // Display minimal ASCII logo
-    console.log(chalk.cyan(ASCIILogos.getMinimalLogo()));
-    
-    // Warning message
-    console.log(chalk.red.bold('\n⚠️  UNINSTALL WARNING:'));
-    console.log(chalk.red('  This will completely remove SmartUI Migration Tool from your system.'));
-    console.log(chalk.red('  All configuration files and data will be lost.'));
-    
-    // Ask for confirmation
-    const { confirm } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'confirm',
-        message: 'Are you sure you want to uninstall SmartUI Migration Tool?',
-        default: false,
-      },
-    ]);
-    
-    if (!confirm) {
-      console.log(chalk.green.bold('\n✅ UNINSTALL CANCELLED:'));
-      console.log(chalk.white('  SmartUI Migration Tool will remain installed.'));
-      console.log(chalk.yellow('\n💡 TIP:'));
-      console.log(chalk.yellow('  Run "smartui-migrator --help" to see available commands.'));
-      process.exit(0);
+    const { flags } = await this.parse(Uninstall);
+    const packageJson = require('../../package.json');
+    const currentVersion = packageJson.version;
+
+    console.log(chalk.red.bold('🗑️ SmartUI Migration Tool - Uninstall\n'));
+    console.log(chalk.white(`Current version: ${chalk.gray(currentVersion)}`));
+    console.log(chalk.white(`Installation path: ${chalk.gray(process.argv[0])}\n`));
+
+    // Show what will be removed
+    console.log(chalk.yellow('📋 This will remove:'));
+    console.log(chalk.white('  • SmartUI Migration Tool binary'));
+    console.log(chalk.white('  • All associated files and dependencies'));
+    console.log(chalk.white('  • Global npm package installation\n'));
+
+    // Show what will NOT be removed
+    console.log(chalk.green('✅ This will NOT remove:'));
+    console.log(chalk.white('  • Your migrated projects'));
+    console.log(chalk.white('  • SmartUI configuration files'));
+    console.log(chalk.white('  • Backup files created during migration'));
+    console.log(chalk.white('  • Any other global npm packages\n'));
+
+    // Confirmation prompt
+    if (!flags.force) {
+      const { confirm } = await inquirer.prompt([
+        {
+          type: 'confirm',
+          name: 'confirm',
+          message: 'Are you sure you want to uninstall SmartUI Migration Tool?',
+          default: false,
+        },
+      ]);
+
+      if (!confirm) {
+        console.log(chalk.blue('\n✅ Uninstall cancelled. SmartUI Migration Tool remains installed.'));
+        return;
+      }
     }
-    
-    // Second confirmation
-    const { finalConfirm } = await inquirer.prompt([
-      {
-        type: 'confirm',
-        name: 'finalConfirm',
-        message: 'This action cannot be undone. Continue with uninstall?',
-        default: false,
-      },
-    ]);
-    
-    if (!finalConfirm) {
-      console.log(chalk.green.bold('\n✅ UNINSTALL CANCELLED:'));
-      console.log(chalk.white('  SmartUI Migration Tool will remain installed.'));
-      process.exit(0);
-    }
-    
-    // Start uninstall process
-    console.log(chalk.yellow.bold('\n🗑️  UNINSTALLING...'));
-    console.log(chalk.white('  Removing SmartUI Migration Tool...'));
-    
+
     try {
+      console.log(chalk.yellow('\n🔄 Uninstalling SmartUI Migration Tool...\n'));
+
+      // Check if running as root (not recommended)
+      if (process.getuid && process.getuid() === 0) {
+        console.log(chalk.yellow('⚠️ Warning: Running as root. This is not recommended.'));
+        console.log(chalk.gray('   Consider using a Node.js version manager like nvm.\n'));
+      }
+
       // Uninstall the package
+      console.log(chalk.blue('🗑️ Removing package...'));
       execSync('npm uninstall -g smartui-migration-tool', { 
         stdio: 'inherit',
-        timeout: 30000 
+        encoding: 'utf8'
       });
+
+      // Verify the uninstall
+      console.log(chalk.blue('\n🔍 Verifying uninstallation...'));
       
-      console.log(chalk.green.bold('\n✅ UNINSTALL SUCCESSFUL!'));
-      console.log(chalk.white('  SmartUI Migration Tool has been removed from your system.'));
-      
-      // Show what was removed
-      console.log(chalk.blue.bold('\n📋 REMOVED COMPONENTS:'));
-      console.log(chalk.white('  • CLI executable (smartui-migrator)'));
-      console.log(chalk.white('  • Core migration modules'));
-      console.log(chalk.white('  • AI-powered analysis tools'));
-      console.log(chalk.white('  • Pattern recognition engines'));
-      console.log(chalk.white('  • Configuration files'));
-      
-      // Show impact
-      console.log(chalk.yellow.bold('\n⚠️  IMPACT:'));
-      console.log(chalk.white('  • You can no longer run "smartui-migrator" commands'));
-      console.log(chalk.white('  • All migration capabilities are removed'));
-      console.log(chalk.white('  • Configuration data is lost'));
+      try {
+        execSync('smartui-migrator --version', { 
+          encoding: 'utf8',
+          stdio: 'pipe'
+        });
+        
+        console.log(chalk.yellow('\n⚠️ Uninstall completed, but command still available'));
+        console.log(chalk.gray('   This may be due to caching or multiple installations'));
+        console.log(chalk.cyan('\n💡 Try restarting your terminal or check your PATH'));
+        
+      } catch (error) {
+        console.log(chalk.green('\n✅ Uninstall successful!'));
+        console.log(chalk.white('   SmartUI Migration Tool has been removed from your system'));
+      }
+
+      // Show next steps
+      console.log(chalk.cyan('\n📋 Next Steps:'));
+      console.log(chalk.white('  • Your migrated projects remain unchanged'));
+      console.log(chalk.white('  • SmartUI configurations are preserved'));
       console.log(chalk.white('  • You can reinstall anytime with: npm install -g smartui-migration-tool'));
       
-      // Alternative tools
-      console.log(chalk.cyan.bold('\n🔄 ALTERNATIVES:'));
-      console.log(chalk.white('  • Manual migration to SmartUI'));
-      console.log(chalk.white('  • Other migration tools'));
-      console.log(chalk.white('  • LambdaTest support team'));
-      
-      // Reinstall instructions
-      console.log(chalk.green.bold('\n🔄 TO REINSTALL:'));
-      console.log(chalk.white('  npm install -g smartui-migration-tool'));
-      console.log(chalk.white('  smartui-migrator --version'));
-      
-      // Feedback request
-      console.log(chalk.magenta.bold('\n💬 FEEDBACK:'));
-      console.log(chalk.white('  We\'d love to hear why you uninstalled the tool.'));
-      console.log(chalk.white('  Please share your feedback at:'));
-      console.log(chalk.cyan('  https://github.com/RushilK7/smartui-migration-tool/issues'));
-      
+      console.log(chalk.cyan('\n💡 Thank you for using SmartUI Migration Tool!'));
+      console.log(chalk.gray('   Visit https://www.lambdatest.com/smart-ui for SmartUI documentation'));
+
     } catch (error) {
-      console.log(chalk.red.bold('\n❌ UNINSTALL FAILED:'));
-      console.log(chalk.red('  Could not uninstall SmartUI Migration Tool.'));
-      console.log(chalk.yellow('\n💡 TROUBLESHOOTING:'));
-      console.log(chalk.yellow('  • Check if the tool is installed globally'));
-      console.log(chalk.yellow('  • Try running: npm uninstall -g smartui-migration-tool'));
-      console.log(chalk.yellow('  • Check for any error messages above'));
-      console.log(chalk.yellow('  • Contact support if issues persist'));
-      process.exit(1);
+      console.error(chalk.red('\n❌ Uninstall failed:'));
+      
+      if (error instanceof Error) {
+        if (error.message.includes('EACCES')) {
+          console.error(chalk.red('   Permission denied. Try running with sudo or use a Node.js version manager.'));
+          console.error(chalk.cyan('\n💡 Alternative: npm uninstall -g smartui-migration-tool'));
+        } else if (error.message.includes('ENOTFOUND') || error.message.includes('network')) {
+          console.error(chalk.red('   Network error. Check your internet connection.'));
+          console.error(chalk.cyan('\n💡 Try again later or check npm registry status.'));
+        } else {
+          console.error(chalk.red(`   ${error.message}`));
+        }
+      } else {
+        console.error(chalk.red('   Unknown error occurred'));
+      }
+      
+      console.error(chalk.cyan('\n💡 For manual uninstall: npm uninstall -g smartui-migration-tool'));
+      this.exit(1);
     }
-    
-    // Footer
-    console.log(chalk.gray('\n' + '='.repeat(60)));
-    console.log(chalk.gray('Uninstall completed successfully!'));
-    console.log(chalk.gray('Thank you for using SmartUI Migration Tool!'));
-    console.log(chalk.gray('='.repeat(60)));
   }
 }

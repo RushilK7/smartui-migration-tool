@@ -1,6 +1,0 @@
-{
-  "name": "quick-demo",
-  "dependencies": {
-    "@percy/cypress": "^3.1.0"
-  }
-}

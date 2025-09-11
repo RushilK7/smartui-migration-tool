@@ -90,8 +90,7 @@
     "hooks": {},
     "plugins": [],
     "topicSeparator": " ",
-    "single": false,
-    "default": "main"
+    "single": false
   },
   "pkg": {
     "scripts": "lib/**/*.js",

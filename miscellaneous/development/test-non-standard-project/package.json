@@ -1,7 +1,0 @@
-{
-  "name": "test-non-standard-project",
-  "version": "1.0.0",
-  "dependencies": {
-    "@percy/cypress": "^3.1.0"
-  }
-}
