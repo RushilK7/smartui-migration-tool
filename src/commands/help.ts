@@ -1,6 +1,6 @@
 import { Command, Flags } from '@oclif/core';
 import chalk from 'chalk';
-import figlet from 'figlet';
+import { ASCIILogos } from '../utils/ascii-logos';
 
 export default class Help extends Command {
   static override description = 'Show detailed help and documentation';
@@ -16,13 +16,8 @@ export default class Help extends Command {
   async run(): Promise<void> {
     const { flags } = await this.parse(Help);
     
-    // Display ASCII logo
-    console.log(chalk.cyan.bold(figlet.textSync('SmartUI', { 
-      font: 'ANSI Shadow',
-      horizontalLayout: 'fitted',
-      verticalLayout: 'fitted'
-    })));
-    console.log(chalk.cyan.bold('Migration Tool - Help & Documentation\n'));
+    // Display bold ASCII logo
+    console.log(chalk.cyan(ASCIILogos.getBoldLogo()));
     
     if (flags.command) {
       // Show help for specific command
