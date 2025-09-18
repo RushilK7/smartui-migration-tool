@@ -84,7 +84,7 @@
     "bin"
   ],
   "oclif": {
-    "commands": "./lib/commands",
+    "commands": "./lib/simple-commands",
     "bin": "smartui-migrator",
     "dirname": "lib",
     "hooks": {},
